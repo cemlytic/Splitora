@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Share,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
+import * as Clipboard from "expo-clipboard";
 import {
   useFonts,
   SpaceGrotesk_400Regular,
@@ -18,15 +20,24 @@ import {
   SpaceGrotesk_600SemiBold,
   SpaceGrotesk_700Bold,
 } from "@expo-google-fonts/space-grotesk";
-import { ArrowLeft, Plus } from "lucide-react-native";
+import {
+  Plus,
+  Share2,
+  Copy,
+  Check,
+  KeyRound,
+  Users,
+} from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
-import type { Expense, GroupSummary } from "@/types";
+import { groupService } from "@/services/groupServices";
+import type { Expense, Group, GroupSummary } from "@/types";
 import { formatCurrency } from "@/utils/formatCurrency";
 import BalanceHeroCard from "@/components/groups/BalanceHeroCard";
 import GroupTabs, { type GroupTabType } from "@/components/groups/GroupTabs";
 import ExpenseList from "@/components/groups/ExpenseList";
 import DebtList from "@/components/groups/DebtList";
+import TopNavigation from "@/components/common/TopNavigation";
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,9 +46,11 @@ export default function GroupDetailScreen() {
 
   const [activeTab, setActiveTab] = useState<GroupTabType>("expenses");
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [group, setGroup] = useState<Group | null>(null);
   const [summary, setSummary] = useState<GroupSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_400Regular,
@@ -47,21 +60,24 @@ export default function GroupDetailScreen() {
   });
 
   const fetchData = useCallback(async () => {
-    if (!id) return;
+    if (!id || !user?.id) return;
     try {
-      const [expensesData, summaryData] = await Promise.all([
+      const [expensesData, summaryData, userGroups] = await Promise.all([
         expenseService.getExpenses(id),
         expenseService.getSummary(id),
+        groupService.getUserGroups(user.id),
       ]);
       setExpenses(expensesData);
       setSummary(summaryData);
+      const currentGroup = userGroups.find((g) => g._id === id) || null;
+      setGroup(currentGroup);
     } catch (error) {
       console.error("Failed to load group details:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id]);
+  }, [id, user?.id]);
 
   useEffect(() => {
     fetchData();
@@ -70,6 +86,24 @@ export default function GroupDetailScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();
+  };
+
+  const handleCopyCode = async () => {
+    if (!group?.inviteCode) return;
+    await Clipboard.setStringAsync(group.inviteCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShareCode = async () => {
+    if (!group?.inviteCode) return;
+    try {
+      await Share.share({
+        message: `Join our space "${group.name || "Split"}"! Use access key: ${group.inviteCode}`,
+      });
+    } catch (error) {
+      console.error("Could not share code:", error);
+    }
   };
 
   const handleSettleUp = (
@@ -121,22 +155,37 @@ export default function GroupDetailScreen() {
       <StatusBar barStyle="dark-content" />
 
       <View className="flex-row items-center justify-between px-6 pt-2 pb-3">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-          className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
-        >
-          <ArrowLeft size={18} color="#1B1B1F" />
-        </TouchableOpacity>
+        <TopNavigation />
 
         <Text
           style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-          className="text-base tracking-tight text-ink"
+          className="max-w-50 truncate text-center text-base tracking-tight text-ink"
+          numberOfLines={1}
         >
-          Group Overview
+          {group?.name || "Group Overview"}
         </Text>
 
-        <View className="h-10 w-10" />
+        <TouchableOpacity
+          onPress={() =>
+            router.push({
+              pathname: "/group/members",
+              params: { groupId: id },
+            })
+          }
+          activeOpacity={0.7}
+          className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
+        >
+          <Users size={17} color="#1B1B1F" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleShareCode}
+          disabled={!group?.inviteCode}
+          activeOpacity={0.7}
+          className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
+        >
+          <Share2 size={17} color="#1B1B1F" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -151,6 +200,60 @@ export default function GroupDetailScreen() {
         }
       >
         <BalanceHeroCard summary={summary} currentUserId={user?.id} />
+
+        {group?.inviteCode && (
+          <View className="mt-4 flex-row items-center justify-between rounded-2xl border border-ink/6 bg-cream/80 p-3.5 shadow-sm">
+            <View className="flex-row items-center gap-2.5">
+              <View className="h-8 w-8 items-center justify-center rounded-xl bg-ink/5">
+                <KeyRound size={15} color="#1B1B1F" />
+              </View>
+              <View>
+                <Text
+                  style={{ fontFamily: "SpaceGrotesk_500Medium" }}
+                  className="text-[11px] uppercase tracking-wider text-muted"
+                >
+                  Invite Code
+                </Text>
+                <Text
+                  style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                  className="text-sm tracking-widest text-ink"
+                >
+                  {group.inviteCode}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleCopyCode}
+              activeOpacity={0.75}
+              className={`flex-row items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all ${
+                copied ? "border-teal bg-teal/10" : "border-ink/10 bg-canvas"
+              }`}
+            >
+              {copied ? (
+                <>
+                  <Check size={13} color="#0E7C66" strokeWidth={2.5} />
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                    className="text-xs text-teal"
+                  >
+                    Copied
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Copy size={13} color="#1B1B1F" strokeWidth={2} />
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                    className="text-xs text-ink"
+                  >
+                    Copy
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         <GroupTabs
           activeTab={activeTab}
