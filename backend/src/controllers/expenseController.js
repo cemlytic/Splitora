@@ -253,10 +253,6 @@ export const deleteExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
     const clerkId = req.query.clerkId || req.body?.clerkId;
-    console.log("--> DELETE EXPENSE ÇAĞRILDI");
-  console.log("Params:", req.params);
-  console.log("Query:", req.query);
-  console.log("Body:", req.body);
 
     if (!clerkId) {
       return res.status(400).json({ message: "id is required" });
