@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  ActivityIndicator,
   RefreshControl,
   Alert,
   Share,
@@ -13,13 +12,6 @@ import {
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
 import * as Clipboard from "expo-clipboard";
-import {
-  useFonts,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
 import {
   Plus,
   Share2,
@@ -53,13 +45,6 @@ export default function GroupDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
 
   const fetchData = useCallback(async () => {
     if (!id || !user?.id) return;
@@ -147,14 +132,6 @@ export default function GroupDetailScreen() {
       ],
     );
   };
-
-  if (!fontsLoaded) {
-    return (
-      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
-        <ActivityIndicator color="#0E7C66" />
-      </SafeScreen>
-    );
-  }
 
   return (
     <SafeScreen includeBottom className="flex-1 bg-canvas">

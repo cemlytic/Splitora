@@ -5,17 +5,9 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-  useFonts,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
 import { X, Users, ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
@@ -30,13 +22,6 @@ export default function GroupMembersScreen() {
   const [summary, setSummary] = useState<GroupSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
-
   useEffect(() => {
     if (!groupId) return;
     setLoading(true);
@@ -48,14 +33,6 @@ export default function GroupMembersScreen() {
       )
       .finally(() => setLoading(false));
   }, [groupId]);
-
-  if (!fontsLoaded) {
-    return (
-      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
-        <ActivityIndicator color="#0E7C66" />
-      </SafeScreen>
-    );
-  }
 
   const memberCount = summary?.balances.length || 0;
 

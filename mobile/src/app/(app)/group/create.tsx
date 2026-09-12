@@ -11,13 +11,6 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
-import {
-  useFonts,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
 import { Sparkles, FolderPlus } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { groupService } from "@/services/groupService";
@@ -36,13 +29,6 @@ export default function CreateGroupScreen() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
 
   const handleCreate = async () => {
     const trimmedName = name.trim();
@@ -75,14 +61,6 @@ export default function CreateGroupScreen() {
       setLoading(false);
     }
   };
-
-  if (!fontsLoaded) {
-    return (
-      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
-        <ActivityIndicator color="#0E7C66" />
-      </SafeScreen>
-    );
-  }
 
   const isFormValid = name.trim().length > 0;
 

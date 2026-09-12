@@ -9,13 +9,6 @@ import {
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { useSSO } from "@clerk/expo";
-import {
-  useFonts,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
 import SafeScreen from "../../components/SafeScreen";
 import SplitMark from "@/components/auth/SplitMark";
 
@@ -24,13 +17,6 @@ WebBrowser.maybeCompleteAuthSession();
 export default function LoginScreen() {
   const { startSSOFlow } = useSSO();
   const [loading, setLoading] = useState(false);
-
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
 
   useEffect(() => {
     WebBrowser.warmUpAsync();
@@ -55,14 +41,6 @@ export default function LoginScreen() {
       setLoading(false);
     }
   }, [startSSOFlow]);
-
-  if (!fontsLoaded) {
-    return (
-      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
-        <ActivityIndicator color="#0E7C66" />
-      </SafeScreen>
-    );
-  }
 
   return (
     <SafeScreen

@@ -12,13 +12,6 @@ import {
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
 import * as Clipboard from "expo-clipboard";
-import {
-  useFonts,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium, 
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
 import { KeyRound, ClipboardPaste, ArrowRight } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { groupService } from "@/services/groupService";
@@ -31,13 +24,6 @@ export default function JoinGroupScreen() {
   const [inviteCode, setInviteCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
 
   const handlePaste = async () => {
     try {
@@ -81,14 +67,6 @@ export default function JoinGroupScreen() {
     }
   };
 
-  if (!fontsLoaded) {
-    return (
-      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
-        <ActivityIndicator color="#0E7C66" />
-      </SafeScreen>
-    );
-  }
-
   const isCodeValid = inviteCode.trim().length >= 4;
 
   return (
@@ -119,7 +97,6 @@ export default function JoinGroupScreen() {
               or trip organizer.
             </Text>
           </View>
-
 
           <View className="mt-8">
             <View className="mb-2.5 flex-row items-center justify-between">
@@ -178,7 +155,6 @@ export default function JoinGroupScreen() {
             </Text>
           </View>
         </View>
-
 
         <View className="mb-2">
           <TouchableOpacity

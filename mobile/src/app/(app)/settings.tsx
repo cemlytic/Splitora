@@ -12,13 +12,6 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useAuth, useUser } from "@clerk/expo";
 import {
-  useFonts,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
-import {
   ArrowLeft,
   LogOut,
   Mail,
@@ -33,13 +26,6 @@ export default function SettingsScreen() {
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
   const [deleting, setDeleting] = useState(false);
-
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
 
   const handleSignOut = () => {
     Alert.alert(
@@ -93,14 +79,6 @@ export default function SettingsScreen() {
       ],
     );
   };
-
-  if (!fontsLoaded) {
-    return (
-      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
-        <ActivityIndicator color="#0E7C66" />
-      </SafeScreen>
-    );
-  }
 
   const email =
     user?.primaryEmailAddress?.emailAddress ||

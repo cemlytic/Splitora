@@ -1,20 +1,7 @@
 import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-} from "react-native";
+import { Alert, RefreshControl, ScrollView, StatusBar } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/expo";
-import {
-  useFonts,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
 
 import SafeScreen from "@/components/SafeScreen";
 import Header from "@/components/home/Header";
@@ -31,13 +18,6 @@ export default function HomeScreen() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
 
   const fetchGroups = useCallback(async () => {
     if (!user?.id) return;
@@ -79,14 +59,6 @@ export default function HomeScreen() {
       },
     ]);
   };
-
-  if (!fontsLoaded) {
-    return (
-      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
-        <ActivityIndicator color="#0E7C66" />
-      </SafeScreen>
-    );
-  }
 
   return (
     <SafeScreen includeBottom className="flex-1 bg-canvas">
