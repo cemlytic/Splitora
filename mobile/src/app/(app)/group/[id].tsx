@@ -30,7 +30,7 @@ import {
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
-import { groupService } from "@/services/groupServices";
+import { groupService } from "@/services/groupService";
 import type { Expense, Group, GroupSummary } from "@/types";
 import { formatCurrency } from "@/utils/formatCurrency";
 import BalanceHeroCard from "@/components/groups/BalanceHeroCard";

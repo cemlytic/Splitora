@@ -1,6 +1,6 @@
 import Header from "@/components/home/Header";
 import HeroCard from "@/components/home/HeroCard";
-import { groupService } from "@/services/groupServices";
+import { groupService } from "@/services/groupService";
 import type { Group } from "@/types";
 import { useAuth, useUser } from "@clerk/expo";
 import {
@@ -10,7 +10,6 @@ import {
   SpaceGrotesk_700Bold,
   useFonts,
 } from "@expo-google-fonts/space-grotesk";
-import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,

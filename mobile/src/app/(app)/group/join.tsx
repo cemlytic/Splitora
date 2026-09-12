@@ -21,7 +21,7 @@ import {
 } from "@expo-google-fonts/space-grotesk";
 import { KeyRound, ClipboardPaste, ArrowRight } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
-import { groupService } from "@/services/groupServices";
+import { groupService } from "@/services/groupService";
 import TopNavigation from "@/components/common/TopNavigation";
 
 export default function JoinGroupScreen() {

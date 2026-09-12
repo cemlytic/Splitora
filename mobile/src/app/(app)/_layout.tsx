@@ -32,6 +32,7 @@ export default function AppLayout() {
         name="expense/[id]"
         options={{ presentation: "modal" }}
       ></Stack.Screen>
+      <Stack.Screen name="settings" />
     </Stack>
   );
 }

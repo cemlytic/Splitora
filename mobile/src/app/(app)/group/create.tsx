@@ -20,7 +20,7 @@ import {
 } from "@expo-google-fonts/space-grotesk";
 import { Sparkles, FolderPlus } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
-import { groupService } from "@/services/groupServices";
+import { groupService } from "@/services/groupService";
 import TopNavigation from "@/components/common/TopNavigation";
 
 const QUICK_SUGGESTIONS = [
