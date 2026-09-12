@@ -38,6 +38,7 @@ import GroupTabs, { type GroupTabType } from "@/components/groups/GroupTabs";
 import ExpenseList from "@/components/groups/ExpenseList";
 import DebtList from "@/components/groups/DebtList";
 import TopNavigation from "@/components/common/TopNavigation";
+import { hapticFeedback } from "@/utils/haptics";
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -93,6 +94,7 @@ export default function GroupDetailScreen() {
   const handleCopyCode = async () => {
     if (!group?.inviteCode) return;
     await Clipboard.setStringAsync(group.inviteCode);
+    hapticFeedback.success();
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -130,6 +132,7 @@ export default function GroupDetailScreen() {
                 payerClerkId: user.id,
                 receiverClerkId,
               });
+              hapticFeedback.success()
               fetchData();
             } catch (error: any) {
               Alert.alert(

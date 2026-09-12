@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
+import { hapticFeedback } from "@/utils/haptics";
 
 const CATEGORIES = [
   { id: "general", label: "General", Icon: Receipt },
@@ -75,6 +76,7 @@ export default function CreateExpenseScreen() {
         amount: parsedAmount,
         category: selectedCategory,
       });
+      hapticFeedback.success();
 
       router.back();
     } catch (error: any) {
@@ -204,7 +206,10 @@ export default function CreateExpenseScreen() {
                 return (
                   <TouchableOpacity
                     key={cat.id}
-                    onPress={() => setSelectedCategory(cat.id)}
+                    onPress={() => {
+                      hapticFeedback.light();
+                      setSelectedCategory(cat.id);
+                    }}
                     activeOpacity={0.75}
                     className={`flex-row items-center gap-2 rounded-xl px-3.5 py-2.5 border transition-all ${
                       isSelected

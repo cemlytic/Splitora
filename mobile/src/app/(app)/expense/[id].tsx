@@ -31,6 +31,7 @@ import { expenseService } from "@/services/expenseService";
 import type { Expense } from "@/types";
 import { formatCurrency } from "@/utils/formatCurrency";
 import TopNavigation from "@/components/common/TopNavigation";
+import { hapticFeedback } from "@/utils/haptics";
 
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -63,6 +64,7 @@ export default function ExpenseDetailScreen() {
   const handleDelete = () => {
     if (!expense || !user?.id) return;
 
+    hapticFeedback.warning();
     Alert.alert(
       "Delete Expense",
       "Are you sure you want to delete this expense? All balances in this group will be automatically recalculated.",
