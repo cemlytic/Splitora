@@ -28,4 +28,22 @@ export const expenseService = {
     const res = await api.post("/expenses/settle-up", payload);
     return res.data;
   },
+
+  getExpenseById: async (expenseId: string): Promise<Expense> => {
+    const res = await api.get<Expense>(`/expenses/${expenseId}`);
+    return res.data;
+  },
+
+  deleteExpense: async (
+    expenseId: string,
+    clerkId: string,
+  ): Promise<{ message: string }> => {
+    const res = await api.delete<{ message: string }>(
+      `/expenses/${expenseId}`,
+      {
+        data: { clerkId },
+      },
+    );
+    return res.data;
+  },
 };

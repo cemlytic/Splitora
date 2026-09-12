@@ -231,3 +231,63 @@ export const settleUp = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const getExpenseById = async (req, res) => {
+  try {
+    const { expenseId } = req.params;
+
+    const expense = await Expense.findById(expenseId)
+      .populate("paidBy", "name email clerkId avatarUrl")
+      .populate("splits.user", "name email clerkId avatarUrl");
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+    res.status(200).json(expense);
+  } catch (error) {
+    console.error("Error fetching expense detail:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteExpense = async (req, res) => {
+  try {
+    const { expenseId } = req.params;
+    const clerkId = req.query.clerkId || req.body?.clerkId;
+
+    if (!clerkId) {
+      return res.status(400).json({ message: "id is required" });
+    }
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const expense = await Expense.findById(expenseId);
+
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+    if (expense.paidBy.toString() !== user._id.toString()) {
+      return res
+        .status(403)
+        .json({ message: "You are not authorized to delete this expense" });
+    }
+
+    const hasSettledSplits = expense.splits.some(
+      (split) =>
+        split.isSettled && split.user.toString() !== user._id.toString(),
+    );
+
+    if (hasSettledSplits) {
+      return res.status(400).json({
+        message: "Cannot delete an expense that already has settled payments",
+      });
+    }
+
+    await Expense.findByIdAndDelete(expenseId);
+  } catch (error) {
+    console.error("Error deleting expense:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
