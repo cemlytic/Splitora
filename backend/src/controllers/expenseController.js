@@ -253,6 +253,10 @@ export const deleteExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
     const clerkId = req.query.clerkId || req.body?.clerkId;
+    console.log("--> DELETE EXPENSE ÇAĞRILDI");
+  console.log("Params:", req.params);
+  console.log("Query:", req.query);
+  console.log("Body:", req.body);
 
     if (!clerkId) {
       return res.status(400).json({ message: "id is required" });
@@ -286,6 +290,7 @@ export const deleteExpense = async (req, res) => {
     }
 
     await Expense.findByIdAndDelete(expenseId);
+    return res.status(200).json({ message: "Expense deleted successfully" });
   } catch (error) {
     console.error("Error deleting expense:", error);
     res.status(500).json({ message: "Internal server error" });

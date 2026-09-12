@@ -1,25 +1,37 @@
-import { View, Text } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { Receipt, CreditCard } from "lucide-react-native";
 import type { Expense } from "@/types";
 import { formatCurrency } from "@/utils/formatCurrency";
+import { useRouter } from "expo-router";
 
-interface ExpenseList {
+interface ExpenseListProps {
   expenses: Expense[];
   currentUserId: string | undefined;
 }
 
-export default function ExpenseList({ expenses, currentUserId }: ExpenseList) {
+export default function ExpenseList({
+  expenses,
+  currentUserId,
+}: ExpenseListProps) {
+  const router = useRouter();
+
   if (expenses.length === 0) {
     return (
-      <View className="mt-5 item-center justifycenter rounded-3xl border border-dashed border-ink/10 bg-cream/30 px-6 py-12">
+      <View className="mt-5 items-center justify-center rounded-3xl border border-dashed border-ink/10 bg-cream/30 px-6 py-12">
         <View className="h-10 w-10 items-center justify-center rounded-full bg-ink/5">
           <Receipt size={18} color="#8A8680" />
         </View>
         <Text
           style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+          className="mt-3 text-sm text-ink"
+        >
+          No expenses logged yet
+        </Text>
+        <Text
+          style={{ fontFamily: "SpaceGrotesk_400Regular" }}
           className="mt-1 text-center text-xs text-muted"
         >
-          Tap the button below yo log yout first shared experience
+          Tap the button below to log your first shared expense.
         </Text>
       </View>
     );
@@ -31,8 +43,17 @@ export default function ExpenseList({ expenses, currentUserId }: ExpenseList) {
         const isPayer = expense.paidBy?.clerkId === currentUserId;
 
         return (
-          <View
+          <TouchableOpacity
             key={expense._id}
+            onPress={() => router.push(`/(app)/expense/${expense._id}`)}
+            activeOpacity={0.75}
+            style={{
+              shadowColor: "#1B1B1F",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.03,
+              shadowRadius: 10,
+              elevation: 1,
+            }}
             className="flex-row items-center justify-between rounded-2xl border border-ink/6 bg-cream p-4"
           >
             <View className="flex-row items-center gap-3.5">
@@ -63,7 +84,7 @@ export default function ExpenseList({ expenses, currentUserId }: ExpenseList) {
             >
               {formatCurrency(expense.amount)}
             </Text>
-          </View>
+          </TouchableOpacity>
         );
       })}
     </View>
