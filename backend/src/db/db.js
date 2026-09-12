@@ -12,7 +12,7 @@ export const connectDB = async () => {
     console.log("MongoDB error", error?.message || error);
   });
   mongoose.connection.on("disconnected", () => {
-    console.warning("Mongodb disconnected");
+    console.warn("Mongodb disconnected");
   });
   await mongoose.connect(env.MONGODB_URI);
 };
