@@ -19,18 +19,19 @@ import {
   SpaceGrotesk_700Bold,
 } from "@expo-google-fonts/space-grotesk";
 import {
+  ArrowLeft,
   LogOut,
   Mail,
   User as UserIcon,
   Trash2,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
-import TopNavigation from "@/components/common/TopNavigation";
+import SettingsSkeleton from "@/components/skeletons/SettingsSkeleton";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const [deleting, setDeleting] = useState(false);
 
   const [fontsLoaded] = useFonts({
@@ -43,7 +44,7 @@ export default function SettingsScreen() {
   const handleSignOut = () => {
     Alert.alert(
       "Sign Out",
-      "Are you sure you want to sign out?",
+      "Are you sure you want to sign out of your account?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -93,7 +94,13 @@ export default function SettingsScreen() {
     );
   };
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded) {
+    return (
+      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
+        <ActivityIndicator color="#0E7C66" />
+      </SafeScreen>
+    );
+  }
 
   const email =
     user?.primaryEmailAddress?.emailAddress ||
@@ -111,7 +118,13 @@ export default function SettingsScreen() {
       <StatusBar barStyle="dark-content" />
 
       <View className="flex-row items-center justify-between py-3">
-        <TopNavigation />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
+        >
+          <ArrowLeft size={18} color="#1B1B1F" />
+        </TouchableOpacity>
 
         <Text
           style={{ fontFamily: "SpaceGrotesk_700Bold" }}
@@ -132,134 +145,145 @@ export default function SettingsScreen() {
         }}
         className="flex-1"
       >
-        <View>
-          <View className="mt-4 items-center rounded-3xl border border-ink/6 bg-cream p-6 shadow-sm">
-            {user?.imageUrl ? (
-              <Image
-                source={{ uri: user.imageUrl }}
-                style={{ width: 72, height: 72, borderRadius: 36 }}
-                contentFit="cover"
-                transition={200}
-              />
-            ) : (
-              <View className="h-18 w-18 items-center justify-center rounded-full bg-teal">
-                <Text
-                  style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                  className="text-2xl text-cream"
-                >
-                  {user?.firstName?.[0] || "U"}
-                </Text>
-              </View>
-            )}
-
-            <Text
-              style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-              className="mt-4 text-xl tracking-tight text-ink text-center"
-            >
-              {fullName}
-            </Text>
-          </View>
-
-          <View className="mt-6">
-            <Text
-              style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
-              className="mb-3 text-xs uppercase tracking-wider text-muted"
-            >
-              Profile Information
-            </Text>
-
-            <View className="rounded-2xl border border-ink/6 bg-cream overflow-hidden">
-              <View className="flex-row items-center justify-between p-4 border-b border-ink/5">
-                <View className="flex-row items-center gap-3">
-                  <View className="h-8 w-8 items-center justify-center rounded-xl bg-ink/5">
-                    <UserIcon size={15} color="#1B1B1F" />
-                  </View>
-                  <Text
-                    style={{ fontFamily: "SpaceGrotesk_500Medium" }}
-                    className="text-xs text-muted"
-                  >
-                    Name
-                  </Text>
-                </View>
-
-                <Text
-                  style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                  className="text-sm text-ink max-w-45 text-right"
-                  numberOfLines={1}
-                >
-                  {fullName}
-                </Text>
-              </View>
-
-              <View className="flex-row items-center justify-between p-4">
-                <View className="flex-row items-center gap-3">
-                  <View className="h-8 w-8 items-center justify-center rounded-xl bg-ink/5">
-                    <Mail size={15} color="#1B1B1F" />
-                  </View>
-                  <Text
-                    style={{ fontFamily: "SpaceGrotesk_500Medium" }}
-                    className="text-xs text-muted"
-                  >
-                    Email
-                  </Text>
-                </View>
-
-                <Text
-                  style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                  className="text-sm text-ink max-w-50 text-right"
-                  numberOfLines={1}
-                >
-                  {email}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View className="mt-8 gap-3">
-            <TouchableOpacity
-              onPress={handleSignOut}
-              disabled={deleting}
-              activeOpacity={0.8}
-              className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl border border-ink/10 bg-cream active:scale-[0.99]"
-            >
-              <LogOut size={16} color="#1B1B1F" strokeWidth={2} />
-              <Text
-                style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                className="text-[15px] text-ink"
-              >
-                Sign Out
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleDeleteAccount}
-              disabled={deleting}
-              activeOpacity={0.8}
-              className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/10 active:scale-[0.99]"
-            >
-              {deleting ? (
-                <ActivityIndicator color="#FF6B4A" />
+        {!isLoaded ? (
+          <SettingsSkeleton />
+        ) : (
+          <View>
+            <View className="mt-4 items-center rounded-3xl border border-ink/6 bg-cream p-6 shadow-sm">
+              {user?.imageUrl ? (
+                <Image
+                  source={{ uri: user.imageUrl }}
+                  style={{ width: 72, height: 72, borderRadius: 36 }}
+                  contentFit="cover"
+                  transition={200}
+                />
               ) : (
-                <>
-                  <Trash2 size={16} color="#FF6B4A" strokeWidth={2} />
+                <View className="h-18 w-18 items-center justify-center rounded-full bg-teal">
                   <Text
                     style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                    className="text-[15px] text-coral"
+                    className="text-2xl text-cream"
                   >
-                    Delete Account
+                    {user?.firstName?.[0] || "U"}
                   </Text>
-                </>
+                </View>
               )}
-            </TouchableOpacity>
+
+              <Text
+                style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                className="mt-4 text-xl tracking-tight text-ink text-center"
+              >
+                {fullName}
+              </Text>
+
+              <Text
+                style={{ fontFamily: "SpaceGrotesk_400Regular" }}
+                className="mt-1 text-xs text-muted text-center"
+              >
+                Signed in via Google
+              </Text>
+            </View>
+
+            <View className="mt-6">
+              <Text
+                style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                className="mb-3 text-xs uppercase tracking-wider text-muted"
+              >
+                Profile Information
+              </Text>
+
+              <View className="rounded-2xl border border-ink/6 bg-cream overflow-hidden">
+                <View className="flex-row items-center justify-between p-4 border-b border-ink/5">
+                  <View className="flex-row items-center gap-3">
+                    <View className="h-8 w-8 items-center justify-center rounded-xl bg-ink/5">
+                      <UserIcon size={15} color="#1B1B1F" />
+                    </View>
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_500Medium" }}
+                      className="text-xs text-muted"
+                    >
+                      Name
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                    className="text-sm text-ink max-w-45 text-right"
+                    numberOfLines={1}
+                  >
+                    {fullName}
+                  </Text>
+                </View>
+
+                <View className="flex-row items-center justify-between p-4">
+                  <View className="flex-row items-center gap-3">
+                    <View className="h-8 w-8 items-center justify-center rounded-xl bg-ink/5">
+                      <Mail size={15} color="#1B1B1F" />
+                    </View>
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_500Medium" }}
+                      className="text-xs text-muted"
+                    >
+                      Email
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                    className="text-sm text-ink max-w-50 text-right"
+                    numberOfLines={1}
+                  >
+                    {email}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View className="mt-8 gap-3">
+              <TouchableOpacity
+                onPress={handleSignOut}
+                disabled={deleting}
+                activeOpacity={0.8}
+                className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl border border-ink/10 bg-cream active:scale-[0.99]"
+              >
+                <LogOut size={16} color="#1B1B1F" strokeWidth={2} />
+                <Text
+                  style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                  className="text-[15px] text-ink"
+                >
+                  Sign Out
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleDeleteAccount}
+                disabled={deleting}
+                activeOpacity={0.8}
+                className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/10 active:scale-[0.99]"
+              >
+                {deleting ? (
+                  <ActivityIndicator color="#FF6B4A" />
+                ) : (
+                  <>
+                    <Trash2 size={16} color="#FF6B4A" strokeWidth={2} />
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                      className="text-[15px] text-coral"
+                    >
+                      Delete Account
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
 
         <View className="mt-12 items-center">
           <Text
             style={{ fontFamily: "SpaceGrotesk_400Regular" }}
             className="text-xs text-muted"
           >
-            © 2026 AppName. All rights reserved.
+            © 2026 SplitMark. All rights reserved.
           </Text>
         </View>
       </ScrollView>

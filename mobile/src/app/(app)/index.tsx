@@ -1,16 +1,4 @@
-import Header from "@/components/home/Header";
-import HeroCard from "@/components/home/HeroCard";
-import { groupService } from "@/services/groupService";
-import type { Group } from "@/types";
-import { useAuth, useUser } from "@clerk/expo";
-import {
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-  useFonts,
-} from "@expo-google-fonts/space-grotesk";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,8 +6,23 @@ import {
   ScrollView,
   StatusBar,
 } from "react-native";
-import SafeScreen from "../../components/SafeScreen";
+import { useFocusEffect } from "expo-router";
+import { useAuth, useUser } from "@clerk/expo";
+import {
+  useFonts,
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from "@expo-google-fonts/space-grotesk";
+
+import SafeScreen from "@/components/SafeScreen";
+import Header from "@/components/home/Header";
+import HeroCard from "@/components/home/HeroCard";
 import GroupList from "@/components/home/GroupList";
+import HomeSkeleton from "@/components/skeletons/HomeSkeleton";
+import { groupService } from "@/services/groupService";
+import type { Group } from "@/types";
 
 export default function HomeScreen() {
   const { signOut } = useAuth();
@@ -42,16 +45,18 @@ export default function HomeScreen() {
       const data = await groupService.getUserGroups(user.id);
       setGroups(data);
     } catch (error) {
-      console.error("Failed to load groups", error);
+      console.error("Failed to load groups:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchGroups();
+    }, [fetchGroups]),
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -99,9 +104,15 @@ export default function HomeScreen() {
         }
       >
         <Header user={user} onSignOut={handleSignOut} />
-        <HeroCard groups={groups} />
 
-        <GroupList groups={groups} loading={loading} />
+        {loading ? (
+          <HomeSkeleton />
+        ) : (
+          <>
+            <HeroCard groups={groups} />
+            <GroupList groups={groups} loading={false} />
+          </>
+        )}
       </ScrollView>
     </SafeScreen>
   );

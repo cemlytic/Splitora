@@ -39,6 +39,7 @@ import ExpenseList from "@/components/groups/ExpenseList";
 import DebtList from "@/components/groups/DebtList";
 import TopNavigation from "@/components/common/TopNavigation";
 import { hapticFeedback } from "@/utils/haptics";
+import GroupDetailSkeleton from "@/components/skeletons/GroupDetailSkeleton";
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -132,7 +133,7 @@ export default function GroupDetailScreen() {
                 payerClerkId: user.id,
                 receiverClerkId,
               });
-              hapticFeedback.success()
+              hapticFeedback.success();
               fetchData();
             } catch (error: any) {
               Alert.alert(
@@ -147,7 +148,7 @@ export default function GroupDetailScreen() {
     );
   };
 
-  if (!fontsLoaded || loading) {
+  if (!fontsLoaded) {
     return (
       <SafeScreen className="flex-1 items-center justify-center bg-canvas">
         <ActivityIndicator color="#0E7C66" />
@@ -170,27 +171,29 @@ export default function GroupDetailScreen() {
           {group?.name || "Group Overview"}
         </Text>
 
-        <TouchableOpacity
-          onPress={() =>
-            router.push({
-              pathname: "/group/members",
-              params: { groupId: id },
-            })
-          }
-          activeOpacity={0.7}
-          className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
-        >
-          <Users size={17} color="#1B1B1F" />
-        </TouchableOpacity>
+        <View className="flex-row items-center gap-2">
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: "/group/members",
+                params: { groupId: id },
+              })
+            }
+            activeOpacity={0.7}
+            className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
+          >
+            <Users size={17} color="#1B1B1F" />
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={handleShareCode}
-          disabled={!group?.inviteCode}
-          activeOpacity={0.7}
-          className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
-        >
-          <Share2 size={17} color="#1B1B1F" />
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleShareCode}
+            disabled={!group?.inviteCode}
+            activeOpacity={0.7}
+            className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
+          >
+            <Share2 size={17} color="#1B1B1F" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -204,107 +207,117 @@ export default function GroupDetailScreen() {
           />
         }
       >
-        <BalanceHeroCard summary={summary} currentUserId={user?.id} />
-
-        {group?.inviteCode && (
-          <View className="mt-4 flex-row items-center justify-between rounded-2xl border border-ink/6 bg-cream/80 p-3.5 shadow-sm">
-            <View className="flex-row items-center gap-2.5">
-              <View className="h-8 w-8 items-center justify-center rounded-xl bg-ink/5">
-                <KeyRound size={15} color="#1B1B1F" />
-              </View>
-              <View>
-                <Text
-                  style={{ fontFamily: "SpaceGrotesk_500Medium" }}
-                  className="text-[11px] uppercase tracking-wider text-muted"
-                >
-                  Invite Code
-                </Text>
-                <Text
-                  style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                  className="text-sm tracking-widest text-ink"
-                >
-                  {group.inviteCode}
-                </Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              onPress={handleCopyCode}
-              activeOpacity={0.75}
-              className={`flex-row items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all ${
-                copied ? "border-teal bg-teal/10" : "border-ink/10 bg-canvas"
-              }`}
-            >
-              {copied ? (
-                <>
-                  <Check size={13} color="#0E7C66" strokeWidth={2.5} />
-                  <Text
-                    style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                    className="text-xs text-teal"
-                  >
-                    Copied
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Copy size={13} color="#1B1B1F" strokeWidth={2} />
-                  <Text
-                    style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
-                    className="text-xs text-ink"
-                  >
-                    Copy
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <GroupTabs
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          expensesCount={expenses.length}
-          debtsCount={summary?.debts.length || 0}
-        />
-
-        {activeTab === "expenses" ? (
-          <ExpenseList expenses={expenses} currentUserId={user?.id} />
+        {loading ? (
+          <GroupDetailSkeleton />
         ) : (
-          <DebtList
-            summary={summary}
-            currentUserId={user?.id}
-            onSettleUp={handleSettleUp}
-          />
+          <>
+            <BalanceHeroCard summary={summary} currentUserId={user?.id} />
+
+            {group?.inviteCode && (
+              <View className="mt-4 flex-row items-center justify-between rounded-2xl border border-ink/6 bg-cream/80 p-3.5 shadow-sm">
+                <View className="flex-row items-center gap-2.5">
+                  <View className="h-8 w-8 items-center justify-center rounded-xl bg-ink/5">
+                    <KeyRound size={15} color="#1B1B1F" />
+                  </View>
+                  <View>
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_500Medium" }}
+                      className="text-[11px] uppercase tracking-wider text-muted"
+                    >
+                      Invite Code
+                    </Text>
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                      className="text-sm tracking-widest text-ink"
+                    >
+                      {group.inviteCode}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleCopyCode}
+                  activeOpacity={0.75}
+                  className={`flex-row items-center gap-1.5 rounded-xl border px-3 py-1.5 transition-all ${
+                    copied
+                      ? "border-teal bg-teal/10"
+                      : "border-ink/10 bg-canvas"
+                  }`}
+                >
+                  {copied ? (
+                    <>
+                      <Check size={13} color="#0E7C66" strokeWidth={2.5} />
+                      <Text
+                        style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                        className="text-xs text-teal"
+                      >
+                        Copied
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={13} color="#1B1B1F" strokeWidth={2} />
+                      <Text
+                        style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                        className="text-xs text-ink"
+                      >
+                        Copy
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <GroupTabs
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              expensesCount={expenses.length}
+              debtsCount={summary?.debts.length || 0}
+            />
+
+            {activeTab === "expenses" ? (
+              <ExpenseList expenses={expenses} currentUserId={user?.id} />
+            ) : (
+              <DebtList
+                summary={summary}
+                currentUserId={user?.id}
+                onSettleUp={handleSettleUp}
+              />
+            )}
+          </>
         )}
       </ScrollView>
 
-      <View className="absolute bottom-6 left-6 right-6">
-        <TouchableOpacity
-          onPress={() =>
-            router.push({
-              pathname: "/(app)/expense/create",
-              params: { groupId: id },
-            })
-          }
-          activeOpacity={0.85}
-          style={{
-            shadowColor: "#FF6B4A",
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.28,
-            shadowRadius: 14,
-            elevation: 4,
-          }}
-          className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl bg-coral active:scale-[0.99]"
-        >
-          <Plus size={18} color="#1B1B1F" strokeWidth={2.5} />
-          <Text
-            style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-            className="text-[15px] text-ink"
+      {!loading && (
+        <View className="absolute bottom-6 left-6 right-6">
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: "/(app)/expense/create",
+                params: { groupId: id },
+              })
+            }
+            activeOpacity={0.85}
+            style={{
+              shadowColor: "#FF6B4A",
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.28,
+              shadowRadius: 14,
+              elevation: 4,
+            }}
+            className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl bg-coral active:scale-[0.99]"
           >
-            Add Expense
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Plus size={18} color="#1B1B1F" strokeWidth={2.5} />
+            <Text
+              style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+              className="text-[15px] text-ink"
+            >
+              Add Expense
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeScreen>
   );
 }
