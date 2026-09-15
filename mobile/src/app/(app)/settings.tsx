@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   StatusBar,
@@ -16,18 +17,111 @@ import {
   Mail,
   User as UserIcon,
   Trash2,
+  Building2,
+  Check,
+  ShieldCheck,
+  Pencil,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import SettingsSkeleton from "@/components/skeletons/SettingsSkeleton";
 import { useAppAlert } from "@/context/AlertContext";
 import { hapticFeedback } from "@/utils/haptics";
+import { userService } from "@/services/userService";
+import { formatIban } from "@/utils/formatIban";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
   const { showAlert } = useAppAlert();
+
   const [deleting, setDeleting] = useState(false);
+
+  const [iban, setIban] = useState("");
+  const [accountHolder, setAccountHolder] = useState("");
+  const [initialIban, setInitialIban] = useState("");
+  const [initialHolder, setInitialHolder] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [isIbanFocused, setIsIbanFocused] = useState(false);
+  const [isHolderFocused, setIsHolderFocused] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    userService
+      .getUserProfile(user.id)
+      .then((data: any) => {
+        if (data?.iban) {
+          const formatted = formatIban(data.iban);
+          setIban(formatted);
+          setInitialIban(formatted);
+        }
+        if (data?.bankAccountHolder) {
+          setAccountHolder(data.bankAccountHolder);
+          setInitialHolder(data.bankAccountHolder);
+        }
+        if (data?.iban || data?.bankAccountHolder) {
+          setIsEditing(false);
+        } else {
+          setIsEditing(true);
+        }
+      })
+      .catch((err) => {
+        console.log("Could not fetch payment profile:", err);
+      });
+  }, [user?.id]);
+
+  const hasChanges =
+    iban.trim() !== initialIban.trim() ||
+    accountHolder.trim() !== initialHolder.trim();
+
+  const handleSavePaymentInfo = async () => {
+    if (!user?.id) return;
+
+    const cleanIban = iban.replace(/\s+/g, "").trim();
+    const cleanHolder = accountHolder.trim();
+
+    if (!cleanIban || !cleanHolder) {
+      hapticFeedback.warning();
+      showAlert({
+        title: "Missing Details",
+        message: "Please enter both the account holder name and IBAN number.",
+        type: "warning",
+      });
+      return;
+    }
+
+    try {
+      setSavingPayment(true);
+      await userService.updatePaymentDetails(user.id, {
+        iban: cleanIban,
+        bankAccountHolder: cleanHolder,
+      });
+
+      setInitialIban(iban);
+      setInitialHolder(accountHolder);
+      setIsEditing(false);
+      hapticFeedback.success();
+
+      showAlert({
+        title: "Details Saved",
+        message: "Your settlement details have been updated successfully.",
+        type: "success",
+      });
+    } catch (error: any) {
+      hapticFeedback.warning();
+      console.error("Save payment details error:", error);
+      showAlert({
+        title: "Update Failed",
+        message:
+          error?.response?.data?.message ||
+          "Could not update payment details. Please try again.",
+        type: "warning",
+      });
+    } finally {
+      setSavingPayment(false);
+    }
+  };
 
   const handleSignOut = () => {
     hapticFeedback.light();
@@ -68,6 +162,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               setDeleting(true);
+              await userService.deleteAccount(user!.id);
               await user?.delete();
               await signOut();
               router.replace("/(auth)/login");
@@ -173,7 +268,7 @@ export default function SettingsScreen() {
             <View className="mt-6">
               <Text
                 style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
-                className="mb-3 text-xs uppercase tracking-wider text-muted"
+                className="mb-3 text-xs uppercase tracking-wider text-muted px-0.5"
               >
                 Profile Information
               </Text>
@@ -221,6 +316,180 @@ export default function SettingsScreen() {
                   >
                     {email}
                   </Text>
+                </View>
+              </View>
+            </View>
+
+            <View className="mt-7">
+              <View className="flex-row items-center justify-between mb-3 px-0.5">
+                <Text
+                  style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                  className="text-xs uppercase tracking-wider text-muted"
+                >
+                  Direct Settlement Details
+                </Text>
+                <View className="flex-row items-center gap-1 rounded-md bg-teal/10 px-2 py-0.5">
+                  <Building2 size={11} color="#0E7C66" />
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                    className="text-[10px] text-teal tracking-wide"
+                  >
+                    IBAN / WIRE
+                  </Text>
+                </View>
+              </View>
+
+              <View className="rounded-3xl border border-ink/6 bg-cream p-5 shadow-sm">
+                <View className="flex-row items-start gap-2.5 pb-4 mb-4 border-b border-ink/5">
+                  <ShieldCheck size={16} color="#0E7C66" className="mt-0.5" />
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_400Regular" }}
+                    className="flex-1 text-xs leading-5 text-muted"
+                  >
+                    Group members can copy these details to transfer their balance directly to your bank account.
+                  </Text>
+                </View>
+
+                <View className="gap-4">
+                  <View>
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                      className="mb-1.5 text-[11px] uppercase tracking-wider text-muted"
+                    >
+                      Account Holder
+                    </Text>
+                    <View
+                      className={`rounded-2xl border px-4 py-3 transition-all ${
+                        !isEditing
+                          ? "border-transparent bg-canvas/60 opacity-80"
+                          : isHolderFocused
+                            ? "border-teal bg-canvas shadow-sm"
+                            : "border-ink/8 bg-canvas"
+                      }`}
+                    >
+                      <TextInput
+                        value={accountHolder}
+                        onChangeText={setAccountHolder}
+                        editable={isEditing}
+                        placeholder="Legal Name or Entity"
+                        placeholderTextColor="#8A8680"
+                        selectionColor="#0E7C66"
+                        onFocus={() => setIsHolderFocused(true)}
+                        onBlur={() => setIsHolderFocused(false)}
+                        style={{
+                          fontFamily: "SpaceGrotesk_500Medium",
+                          fontSize: 14,
+                          color: "#1B1B1F",
+                        }}
+                      />
+                    </View>
+                  </View>
+
+                  <View>
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                      className="mb-1.5 text-[11px] uppercase tracking-wider text-muted"
+                    >
+                      International Bank Account Number (IBAN)
+                    </Text>
+                    <View
+                      className={`rounded-2xl border px-4 py-3 transition-all ${
+                        !isEditing
+                          ? "border-transparent bg-canvas/60 opacity-80"
+                          : isIbanFocused
+                            ? "border-teal bg-canvas shadow-sm"
+                            : "border-ink/8 bg-canvas"
+                      }`}
+                    >
+                      <TextInput
+                        value={iban}
+                        onChangeText={(txt) => setIban(formatIban(txt))}
+                        editable={isEditing}
+                        placeholder="GB29 NWBK 6016 1331 9268 19"
+                        placeholderTextColor="#8A8680"
+                        autoCapitalize="characters"
+                        selectionColor="#0E7C66"
+                        maxLength={42}
+                        onFocus={() => setIsIbanFocused(true)}
+                        onBlur={() => setIsIbanFocused(false)}
+                        style={{
+                          fontFamily: "SpaceGrotesk_700Bold",
+                          fontSize: 13,
+                          letterSpacing: 0.8,
+                          color: "#1B1B1F",
+                        }}
+                      />
+                    </View>
+                  </View>
+
+                  {!isEditing ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        hapticFeedback.light();
+                        setIsEditing(true);
+                      }}
+                      activeOpacity={0.8}
+                      className="mt-1 h-12 flex-row items-center justify-center gap-2 rounded-2xl border border-ink/10 bg-canvas active:scale-[0.99]"
+                    >
+                      <Pencil size={14} color="#1B1B1F" strokeWidth={2} />
+                      <Text
+                        style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                        className="text-xs text-ink"
+                      >
+                        Edit Details
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View className="mt-1 flex-row items-center gap-2">
+                      {initialIban || initialHolder ? (
+                        <TouchableOpacity
+                          onPress={() => {
+                            hapticFeedback.light();
+                            setIban(initialIban);
+                            setAccountHolder(initialHolder);
+                            setIsEditing(false);
+                          }}
+                          activeOpacity={0.8}
+                          className="h-12 flex-1 items-center justify-center rounded-2xl border border-ink/10 bg-canvas active:scale-[0.99]"
+                        >
+                          <Text
+                            style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                            className="text-xs text-ink/70"
+                          >
+                            Cancel
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+
+                      <TouchableOpacity
+                        onPress={handleSavePaymentInfo}
+                        disabled={
+                          savingPayment ||
+                          (!hasChanges && (!!initialIban || !!initialHolder))
+                        }
+                        activeOpacity={0.8}
+                        className={`h-12 flex-row items-center justify-center gap-2 rounded-2xl active:scale-[0.99] ${
+                          !hasChanges && (initialIban || initialHolder)
+                            ? "bg-ink/20 flex-1"
+                            : "bg-ink flex-1"
+                        }`}
+                      >
+                        {savingPayment ? (
+                          <ActivityIndicator color="#FFF8F0" size="small" />
+                        ) : (
+                          <>
+                            <Check size={14} color="#FFF8F0" strokeWidth={2.5} />
+                            <Text
+                              style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                              className="text-xs text-cream"
+                            >
+                              Save Changes
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>

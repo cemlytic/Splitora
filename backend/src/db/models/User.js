@@ -23,6 +23,16 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    iban: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    bankAccountHolder: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   {
     timestamps: true,
