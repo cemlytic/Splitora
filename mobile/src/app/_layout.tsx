@@ -11,6 +11,7 @@ import {
 } from "@expo-google-fonts/space-grotesk";
 import { tokenCache } from "@/utils/tokenCache";
 import "../global.css";
+import { AlertProvider } from "@/context/AlertContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -27,11 +28,9 @@ function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
 
   useEffect(() => {
     if (!isLoaded || !fontsLoaded) return;
-
     SplashScreen.hideAsync();
 
     const inAuthGroup = segments[0] === "(auth)";
-
     if (!isSignedIn && !inAuthGroup) {
       router.replace("/(auth)/login");
     } else if (isSignedIn && inAuthGroup) {
@@ -43,7 +42,12 @@ function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
     return null;
   }
 
-  return <Slot />;
+
+  return (
+    <AlertProvider>
+      <Slot />
+    </AlertProvider>
+  );
 }
 
 export default function RootLayout() {

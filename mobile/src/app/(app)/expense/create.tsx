@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ScrollView,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -25,6 +24,8 @@ import {
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
 import { hapticFeedback } from "@/utils/haptics";
+import { useAppAlert } from "@/context/AlertContext";
+import TopNavigation from "@/components/common/TopNavigation";
 
 const CATEGORIES = [
   { id: "general", label: "General", Icon: Receipt },
@@ -38,6 +39,7 @@ export default function CreateExpenseScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
   const router = useRouter();
   const { user } = useUser();
+  const { showAlert } = useAppAlert();
 
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -50,20 +52,31 @@ export default function CreateExpenseScreen() {
     const parsedAmount = parseFloat(amount.replace(",", "."));
 
     if (!trimmedTitle) {
-      Alert.alert("Missing Details", "Please provide a name for this expense.");
+      hapticFeedback.warning();
+      showAlert({
+        title: "Missing Details",
+        message: "Please provide a name or description for this expense.",
+        type: "warning",
+      });
       return;
     }
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert(
-        "Invalid Amount",
-        "Please enter a valid expense amount greater than 0.",
-      );
+      hapticFeedback.warning();
+      showAlert({
+        title: "Invalid Amount",
+        message: "Please enter a valid expense amount greater than 0.",
+        type: "warning",
+      });
       return;
     }
 
     if (!user?.id || !groupId) {
-      Alert.alert("Session Error", "Group reference or user profile missing.");
+      showAlert({
+        title: "Session Error",
+        message: "Group reference or user profile missing. Please try again.",
+        type: "warning",
+      });
       return;
     }
 
@@ -77,18 +90,19 @@ export default function CreateExpenseScreen() {
         category: selectedCategory,
       });
       hapticFeedback.success();
-
       router.back();
     } catch (error: any) {
       console.error(
         "Failed to create expense:",
         error?.response?.data || error,
       );
-      Alert.alert(
-        "Error",
-        error?.response?.data?.message ||
+      showAlert({
+        title: "Creation Failed",
+        message:
+          error?.response?.data?.message ||
           "Could not save the expense. Please try again.",
-      );
+        type: "warning",
+      });
     } finally {
       setLoading(false);
     }
@@ -103,13 +117,7 @@ export default function CreateExpenseScreen() {
         className="flex-1"
       >
         <View className="flex-row items-center justify-between py-3">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-            className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
-          >
-            <ArrowLeft size={18} color="#1B1B1F" />
-          </TouchableOpacity>
+          <TopNavigation />
 
           <Text
             style={{ fontFamily: "SpaceGrotesk_700Bold" }}
@@ -124,6 +132,7 @@ export default function CreateExpenseScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 24 }}
           className="flex-1"
         >
           <View className="mt-6 items-center justify-center rounded-3xl border border-ink/6 bg-cream py-8 px-4 shadow-sm">

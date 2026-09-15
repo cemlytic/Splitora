@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
@@ -16,10 +15,13 @@ import { KeyRound, ClipboardPaste, ArrowRight } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { groupService } from "@/services/groupService";
 import TopNavigation from "@/components/common/TopNavigation";
+import { useAppAlert } from "@/context/AlertContext";
+import { hapticFeedback } from "@/utils/haptics";
 
 export default function JoinGroupScreen() {
   const router = useRouter();
   const { user } = useUser();
+  const { showAlert } = useAppAlert();
 
   const [inviteCode, setInviteCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,6 +31,7 @@ export default function JoinGroupScreen() {
     try {
       const text = await Clipboard.getStringAsync();
       if (text) {
+        hapticFeedback.light();
         setInviteCode(text.trim().toUpperCase());
       }
     } catch (error) {
@@ -39,12 +42,21 @@ export default function JoinGroupScreen() {
   const handleJoin = async () => {
     const cleanCode = inviteCode.trim().toUpperCase();
     if (!cleanCode) {
-      Alert.alert("Missing Code", "Please enter a valid invite code.");
+      hapticFeedback.warning();
+      showAlert({
+        title: "Missing Code",
+        message: "Please enter a valid invite code.",
+        type: "warning",
+      });
       return;
     }
 
     if (!user?.id) {
-      Alert.alert("Error", "User session not found.");
+      showAlert({
+        title: "Session Error",
+        message: "User session not found. Please log in again.",
+        type: "warning",
+      });
       return;
     }
 
@@ -54,14 +66,18 @@ export default function JoinGroupScreen() {
         inviteCode: cleanCode,
         clerkId: user.id,
       });
+      hapticFeedback.success();
       router.replace(`/group/${joinedGroup._id}`);
     } catch (error: any) {
       console.error("Failed to join group:", error);
-      Alert.alert(
-        "Unable to Join",
-        error?.response?.data?.message ||
+      hapticFeedback.warning();
+      showAlert({
+        title: "Unable to Join",
+        message:
+          error?.response?.data?.message ||
           "This invite code appears to be invalid or expired. Check with your friend and try again.",
-      );
+        type: "warning",
+      });
     } finally {
       setLoading(false);
     }

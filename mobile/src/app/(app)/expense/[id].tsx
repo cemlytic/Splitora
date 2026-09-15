@@ -12,13 +12,6 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
 import {
-  useFonts,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
-import {
   Trash2,
   CheckCircle2,
   Clock,
@@ -32,22 +25,17 @@ import { formatCurrency } from "@/utils/formatCurrency";
 import TopNavigation from "@/components/common/TopNavigation";
 import { hapticFeedback } from "@/utils/haptics";
 import ExpenseDetailSkeleton from "@/components/skeletons/ExpenseDetailSkeleton";
+import { useAppAlert } from "@/context/AlertContext";
 
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useUser();
+  const { showAlert } = useAppAlert();
 
   const [expense, setExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
-
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-  });
 
   useEffect(() => {
     if (!id) return;
@@ -66,10 +54,12 @@ export default function ExpenseDetailScreen() {
     if (!expense || !user?.id) return;
 
     hapticFeedback.warning();
-    Alert.alert(
-      "Delete Expense",
-      "Are you sure you want to delete this expense? All balances in this group will be automatically recalculated.",
-      [
+    showAlert({
+      title: "Delete Expense",
+      message:
+        "Are you sure you want to delete this expense? Balances will recalculate automatically.",
+      type: "destructive",
+      buttons: [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
@@ -92,16 +82,8 @@ export default function ExpenseDetailScreen() {
           },
         },
       ],
-    );
+    });
   };
-
-  if (!fontsLoaded) {
-    return (
-      <SafeScreen className="flex-1 items-center justify-center bg-canvas">
-        <ActivityIndicator color="#0E7C66" />
-      </SafeScreen>
-    );
-  }
 
   const isPayer = expense?.paidBy?.clerkId === user?.id;
 

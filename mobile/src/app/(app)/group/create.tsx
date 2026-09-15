@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
@@ -15,6 +14,8 @@ import { Sparkles, FolderPlus } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { groupService } from "@/services/groupService";
 import TopNavigation from "@/components/common/TopNavigation";
+import { useAppAlert } from "@/context/AlertContext";
+import { hapticFeedback } from "@/utils/haptics";
 
 const QUICK_SUGGESTIONS = [
   "Apartment 4B",
@@ -26,6 +27,8 @@ const QUICK_SUGGESTIONS = [
 export default function CreateGroupScreen() {
   const router = useRouter();
   const { user } = useUser();
+  const { showAlert } = useAppAlert();
+
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -33,12 +36,21 @@ export default function CreateGroupScreen() {
   const handleCreate = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      Alert.alert("Required Field", "Please enter a group name.");
+      hapticFeedback.warning();
+      showAlert({
+        title: "Required Field",
+        message: "Please enter a name for this space.",
+        type: "warning",
+      });
       return;
     }
 
     if (!user?.id) {
-      Alert.alert("Error", "User profile not found.");
+      showAlert({
+        title: "Session Error",
+        message: "User profile not found. Please log in again.",
+        type: "warning",
+      });
       return;
     }
 
@@ -48,15 +60,17 @@ export default function CreateGroupScreen() {
         name: trimmedName,
         clerkId: user.id,
       });
-
+      hapticFeedback.success();
       router.replace(`/group/${newGroup._id}`);
     } catch (error: any) {
       console.error("Group creation error:", error?.response?.data || error);
-      Alert.alert(
-        "Error",
-        error?.response?.data?.message ||
-          "Something went wrong while creating the group.",
-      );
+      showAlert({
+        title: "Creation Failed",
+        message:
+          error?.response?.data?.message ||
+          "Something went wrong while creating the space.",
+        type: "warning",
+      });
     } finally {
       setLoading(false);
     }

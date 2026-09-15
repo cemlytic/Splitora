@@ -6,7 +6,6 @@ import {
   ScrollView,
   StatusBar,
   RefreshControl,
-  Alert,
   Share,
 } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -32,11 +31,13 @@ import DebtList from "@/components/groups/DebtList";
 import TopNavigation from "@/components/common/TopNavigation";
 import { hapticFeedback } from "@/utils/haptics";
 import GroupDetailSkeleton from "@/components/skeletons/GroupDetailSkeleton";
+import { useAppAlert } from "@/context/AlertContext";
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useUser();
+  const { showAlert } = useAppAlert();
 
   const [activeTab, setActiveTab] = useState<GroupTabType>("expenses");
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -103,10 +104,11 @@ export default function GroupDetailScreen() {
   ) => {
     if (!user?.id || !id) return;
 
-    Alert.alert(
-      "Settle Balance",
-      `Confirm payment of ${formatCurrency(amount)} to ${receiverName}?`,
-      [
+    showAlert({
+      title: "Settle Balance",
+      message: `Confirm payment of ${formatCurrency(amount)} to ${receiverName}?`,
+      type: "info",
+      buttons: [
         { text: "Cancel", style: "cancel" },
         {
           text: "Mark as Settled",
@@ -121,16 +123,18 @@ export default function GroupDetailScreen() {
               hapticFeedback.success();
               fetchData();
             } catch (error: any) {
-              Alert.alert(
-                "Error",
-                error?.response?.data?.message ||
+              showAlert({
+                title: "Error",
+                message:
+                  error?.response?.data?.message ||
                   "Could not complete settlement.",
-              );
+                type: "warning",
+              });
             }
           },
         },
       ],
-    );
+    });
   };
 
   return (

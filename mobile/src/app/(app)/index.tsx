@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Alert, RefreshControl, ScrollView, StatusBar } from "react-native";
+import { RefreshControl, ScrollView, StatusBar } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/expo";
 
@@ -10,10 +10,12 @@ import GroupList from "@/components/home/GroupList";
 import HomeSkeleton from "@/components/skeletons/HomeSkeleton";
 import { groupService } from "@/services/groupService";
 import type { Group } from "@/types";
+import { useAppAlert } from "@/context/AlertContext";
 
 export default function HomeScreen() {
   const { signOut } = useAuth();
   const { user } = useUser();
+  const { showAlert } = useAppAlert();
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,20 +46,25 @@ export default function HomeScreen() {
   }, [fetchGroups]);
 
   const handleSignOut = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await signOut();
-          } catch (error) {
-            console.error("Sign out error:", error);
-          }
+    showAlert({
+      title: "Sign Out",
+      message: "Are you sure you want to sign out of your account?",
+      type: "warning",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (error) {
+              console.error("Sign out error:", error);
+            }
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   return (

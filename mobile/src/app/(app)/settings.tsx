@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
@@ -20,18 +19,23 @@ import {
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import SettingsSkeleton from "@/components/skeletons/SettingsSkeleton";
+import { useAppAlert } from "@/context/AlertContext";
+import { hapticFeedback } from "@/utils/haptics";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
+  const { showAlert } = useAppAlert();
   const [deleting, setDeleting] = useState(false);
 
   const handleSignOut = () => {
-    Alert.alert(
-      "Sign Out",
-      "Are you sure you want to sign out of your account?",
-      [
+    hapticFeedback.light();
+    showAlert({
+      title: "Sign Out",
+      message: "Are you sure you want to sign out of your account?",
+      type: "warning",
+      buttons: [
         { text: "Cancel", style: "cancel" },
         {
           text: "Sign Out",
@@ -39,21 +43,24 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               await signOut();
-              router.replace("/login");
+              router.replace("/(auth)/login");
             } catch (error) {
               console.error("Sign out error:", error);
             }
           },
         },
       ],
-    );
+    });
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to permanently delete your account? This action cannot be undone and you will lose access to all your spaces.",
-      [
+    hapticFeedback.warning();
+    showAlert({
+      title: "Delete Account",
+      message:
+        "Are you sure you want to permanently delete your account? All access to your spaces and history will be lost.",
+      type: "destructive",
+      buttons: [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete Account",
@@ -63,21 +70,23 @@ export default function SettingsScreen() {
               setDeleting(true);
               await user?.delete();
               await signOut();
-              router.replace("/login");
+              router.replace("/(auth)/login");
             } catch (error: any) {
               console.error("Delete account error:", error);
-              Alert.alert(
-                "Action Failed",
-                error?.errors?.[0]?.message ||
+              showAlert({
+                title: "Action Failed",
+                message:
+                  error?.errors?.[0]?.message ||
                   "Could not delete your account at this moment.",
-              );
+                type: "warning",
+              });
             } finally {
               setDeleting(false);
             }
           },
         },
       ],
-    );
+    });
   };
 
   const email =
@@ -261,7 +270,7 @@ export default function SettingsScreen() {
             style={{ fontFamily: "SpaceGrotesk_400Regular" }}
             className="text-xs text-muted"
           >
-            © 2026 SplitMark. All rights reserved.
+            © 2026 AppName. All rights reserved.
           </Text>
         </View>
       </ScrollView>
