@@ -66,6 +66,7 @@ export interface CreateExpensePayload {
   title: string;
   amount: number | string;
   category?: string;
+  splitUserIds: string[];
 }
 
 export interface SettleUpPayload {

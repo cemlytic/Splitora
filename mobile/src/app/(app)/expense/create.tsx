@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,23 +9,26 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
 import {
-  ArrowLeft,
   Receipt,
   UtensilsCrossed,
   Car,
   Home,
   PartyPopper,
-  Info,
   Check,
+  Users,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
+import { groupService } from "@/services/groupService";
 import { hapticFeedback } from "@/utils/haptics";
 import { useAppAlert } from "@/context/AlertContext";
 import TopNavigation from "@/components/common/TopNavigation";
+import type { Group } from "@/types";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 const CATEGORIES = [
   { id: "general", label: "General", Icon: Receipt },
@@ -45,7 +48,53 @@ export default function CreateExpenseScreen() {
   const [amount, setAmount] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("general");
   const [loading, setLoading] = useState(false);
+  const [fetchingGroup, setFetchingGroup] = useState(true);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
+
+  const [group, setGroup] = useState<Group | null>(null);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!groupId || !user?.id) return;
+    groupService
+      .getUserGroups(user.id)
+      .then((groups) => {
+        const current = groups.find((g) => g._id === groupId);
+        if (current) {
+          setGroup(current);
+          const allMemberIds = (current.members as any[]).map((m) =>
+            typeof m === "string" ? m : m._id,
+          );
+          setSelectedMemberIds(allMemberIds);
+        }
+      })
+      .catch((err) => console.error("Error fetching group:", err))
+      .finally(() => setFetchingGroup(false));
+  }, [groupId, user?.id]);
+
+  const toggleMember = (memberId: string) => {
+    hapticFeedback.light();
+    setSelectedMemberIds((prev) => {
+      if (prev.includes(memberId)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((id) => id !== memberId);
+      }
+      return [...prev, memberId];
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (!group) return;
+    hapticFeedback.light();
+    const allIds = (group.members as any[]).map((m) =>
+      typeof m === "string" ? m : m._id,
+    );
+    if (selectedMemberIds.length === allIds.length) {
+      setSelectedMemberIds([allIds[0]]);
+    } else {
+      setSelectedMemberIds(allIds);
+    }
+  };
 
   const handleCreate = async () => {
     const trimmedTitle = title.trim();
@@ -71,6 +120,17 @@ export default function CreateExpenseScreen() {
       return;
     }
 
+    if (selectedMemberIds.length === 0) {
+      hapticFeedback.warning();
+      showAlert({
+        title: "No Members Selected",
+        message:
+          "Please select at least one person to split this expense with.",
+        type: "warning",
+      });
+      return;
+    }
+
     if (!user?.id || !groupId) {
       showAlert({
         title: "Session Error",
@@ -88,6 +148,7 @@ export default function CreateExpenseScreen() {
         title: trimmedTitle,
         amount: parsedAmount,
         category: selectedCategory,
+        splitUserIds: selectedMemberIds,
       });
       hapticFeedback.success();
       router.back();
@@ -108,7 +169,16 @@ export default function CreateExpenseScreen() {
     }
   };
 
-  const isFormValid = title.trim().length > 0 && amount.trim().length > 0;
+  const parsedAmount = parseFloat(amount.replace(",", ".")) || 0;
+  const splitPerPerson =
+    selectedMemberIds.length > 0 ? parsedAmount / selectedMemberIds.length : 0;
+  const isFormValid =
+    title.trim().length > 0 &&
+    amount.trim().length > 0 &&
+    selectedMemberIds.length > 0;
+
+  const allSelected =
+    group?.members && selectedMemberIds.length === group.members.length;
 
   return (
     <SafeScreen includeBottom className="flex-1 bg-canvas px-6">
@@ -132,7 +202,7 @@ export default function CreateExpenseScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: 28 }}
           className="flex-1"
         >
           <View className="mt-6 items-center justify-center rounded-3xl border border-ink/6 bg-cream py-8 px-4 shadow-sm">
@@ -167,6 +237,24 @@ export default function CreateExpenseScreen() {
                 }}
               />
             </View>
+
+            {parsedAmount > 0 && (
+              <View className="mt-3 flex-row items-center gap-1.5 rounded-full border border-teal/20 bg-teal/10 px-3.5 py-1">
+                <Text
+                  style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                  className="text-xs text-teal"
+                >
+                  {formatCurrency(splitPerPerson)}
+                </Text>
+                <Text
+                  style={{ fontFamily: "SpaceGrotesk_400Regular" }}
+                  className="text-xs text-teal/80"
+                >
+                  each ({selectedMemberIds.length} of{" "}
+                  {group?.members?.length || 0})
+                </Text>
+              </View>
+            )}
           </View>
 
           <View className="mt-7">
@@ -249,15 +337,142 @@ export default function CreateExpenseScreen() {
             </View>
           </View>
 
-          <View className="mt-8 flex-row items-start gap-3 rounded-2xl border border-teal/15 bg-teal/5 p-4">
-            <Info size={16} color="#0E7C66" className="mt-0.5" />
-            <Text
-              style={{ fontFamily: "SpaceGrotesk_400Regular" }}
-              className="flex-1 text-xs leading-5 text-teal"
-            >
-              This expense will be split evenly across all space members. You
-              will be recorded as the sole payer.
-            </Text>
+          <View className="mt-7">
+            <View className="flex-row items-center justify-between mb-3 px-0.5">
+              <View className="flex-row items-center gap-2">
+                <Users size={14} color="#1B1B1F" />
+                <Text
+                  style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                  className="text-xs uppercase tracking-wider text-muted"
+                >
+                  Split With ({selectedMemberIds.length}/
+                  {group?.members?.length || 0})
+                </Text>
+              </View>
+
+              {group && (
+                <TouchableOpacity
+                  onPress={handleSelectAll}
+                  activeOpacity={0.7}
+                  className="rounded-lg bg-teal/10 px-2.5 py-1"
+                >
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                    className="text-[11px] text-teal tracking-wide"
+                  >
+                    {allSelected ? "DESELECT ALL" : "SELECT ALL"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {fetchingGroup ? (
+              <View className="py-6 items-center justify-center">
+                <ActivityIndicator size="small" color="#0E7C66" />
+              </View>
+            ) : (
+              <View className="gap-2">
+                {(group?.members as any[])?.map((member) => {
+                  const mId = typeof member === "string" ? member : member._id;
+                  const isSelected = selectedMemberIds.includes(mId);
+                  const isSelf = member?.clerkId === user?.id;
+                  const memberName = member?.name || "Member";
+                  const avatarUrl = member?.avatarUrl;
+
+                  return (
+                    <TouchableOpacity
+                      key={mId}
+                      onPress={() => toggleMember(mId)}
+                      activeOpacity={0.8}
+                      className={`flex-row items-center justify-between rounded-2xl border p-3.5 transition-all ${
+                        isSelected
+                          ? "border-teal/30 bg-cream shadow-sm"
+                          : "border-ink/6 bg-cream/40 opacity-50"
+                      }`}
+                    >
+                      <View className="flex-row items-center gap-3">
+                        {avatarUrl ? (
+                          <Image
+                            source={{ uri: avatarUrl }}
+                            style={{ width: 34, height: 34, borderRadius: 17 }}
+                            contentFit="cover"
+                            transition={200}
+                          />
+                        ) : (
+                          <View
+                            className={`h-8.5 w-8.5 items-center justify-center rounded-xl ${
+                              isSelected ? "bg-teal/15" : "bg-ink/5"
+                            }`}
+                          >
+                            <Text
+                              style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                              className={`text-xs ${
+                                isSelected ? "text-teal" : "text-ink/60"
+                              }`}
+                            >
+                              {memberName[0]?.toUpperCase() || "M"}
+                            </Text>
+                          </View>
+                        )}
+
+                        <View>
+                          <Text
+                            style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                            className="text-[14px] text-ink"
+                            numberOfLines={1}
+                          >
+                            {memberName}
+                            {isSelf && (
+                              <Text
+                                style={{
+                                  fontFamily: "SpaceGrotesk_400Regular",
+                                }}
+                                className="text-muted text-xs"
+                              >
+                                {" "}
+                                (You)
+                              </Text>
+                            )}
+                          </Text>
+
+                          {isSelected && parsedAmount > 0 && (
+                            <Text
+                              style={{ fontFamily: "SpaceGrotesk_500Medium" }}
+                              className="text-[11px] text-teal"
+                            >
+                              Owes {formatCurrency(splitPerPerson)}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+
+                      <View
+                        style={
+                          isSelected
+                            ? {
+                                shadowColor: "#0E7C66",
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.25,
+                                shadowRadius: 4,
+                                elevation: 2,
+                              }
+                            : undefined
+                        }
+                        className={`h-6 w-6 items-center justify-center rounded-full border transition-all ${
+                          isSelected
+                            ? "border-teal bg-teal"
+                            : "border-ink/20 bg-canvas"
+                        }`}
+                      >
+                        {isSelected && (
+                          <Check size={12} color="#FFF8F0" strokeWidth={3} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         </ScrollView>
 

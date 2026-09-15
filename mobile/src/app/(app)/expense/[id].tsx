@@ -233,7 +233,11 @@ export default function ExpenseDetailScreen() {
                             style={{ fontFamily: "SpaceGrotesk_400Regular" }}
                             className="text-[11px] text-muted"
                           >
-                            {split.isSettled ? "Settled up" : "Pending payment"}
+                            {split.isSettled
+                              ? isSelf
+                                ? "Your share (Covered)"
+                                : "Settled up"
+                              : "Pending payment"}
                           </Text>
                         </View>
                       </View>

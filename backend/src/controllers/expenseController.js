@@ -4,7 +4,8 @@ import { User } from "../db/models/User.js";
 
 export const createExpense = async (req, res) => {
   try {
-    const { groupId, clerkId, title, amount, category } = req.body;
+    const { groupId, clerkId, title, amount, category, splitUserIds } =
+      req.body;
 
     if (!groupId || !clerkId || !title || !amount) {
       return res
@@ -29,12 +30,6 @@ export const createExpense = async (req, res) => {
       return res.status(404).json({ message: "Group not found" });
     }
 
-    console.log("İşlem Yapan User ID:", user._id.toString());
-    console.log(
-      "Gruptaki Üyeler:",
-      group.members.map((m) => (m._id ? m._id.toString() : m.toString())),
-    );
-
     const isMember = group.members.some((member) => {
       const memberIdStr = member._id
         ? member._id.toString()
@@ -48,15 +43,37 @@ export const createExpense = async (req, res) => {
         .json({ message: "You are not a member of this group" });
     }
 
-    const memberCount = group.members.length;
+    const allGroupMemberIds = group.members.map((m) =>
+      m._id ? m._id.toString() : m.toString(),
+    );
+
+    let targetMemberIds = allGroupMemberIds;
+
+    if (Array.isArray(splitUserIds) && splitUserIds.length > 0) {
+      targetMemberIds = allGroupMemberIds.filter((id) =>
+        splitUserIds.map((s) => s.toString()).includes(id),
+      );
+
+      if (targetMemberIds.length === 0) {
+        return res
+          .status(400)
+          .json({
+            message: "At least one valid group member must be selected",
+          });
+      }
+    }
+
+    const memberCount = targetMemberIds.length;
     const splitAmount = Number((numericAmount / memberCount).toFixed(2));
 
-    const splits = group.members.map((member) => {
-      const memberId = member._id || member;
+    const payerIdStr = user._id.toString();
+
+    const splits = targetMemberIds.map((memberIdStr) => {
+      const isPayer = memberIdStr === payerIdStr;
       return {
-        user: memberId,
+        user: memberIdStr,
         amount: splitAmount,
-        isSettled: memberId.toString() === user._id.toString(),
+        isSettled: isPayer,
       };
     });
 
