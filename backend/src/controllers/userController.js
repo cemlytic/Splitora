@@ -53,3 +53,44 @@ export const deleteUserAccount = async (req, res) => {
     return res.status(500).json({ message: "Internal server error." });
   }
 };
+
+export const updatePaymentDetails = async (req, res) => {
+  try {
+    const { clerkId } = req.params;
+    const { iban, bankAccountHolder } = req.body;
+
+    const sanitizedIban = iban ? iban.replace(/\s+/g, "").toUpperCase() : "";
+
+const updatedUser = await User.findOneAndUpdate(
+      { clerkId },
+      {
+        iban: sanitizedIban,
+        bankAccountHolder: bankAccountHolder?.trim() || "",
+      },
+      { new: true }
+    );
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.json(updatedUser);
+  } catch (error) {
+    console.error("Error updating payment details:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getUserProfile = async (req, res) => {
+  try {
+    const { clerkId } = req.params;
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json(user);
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
