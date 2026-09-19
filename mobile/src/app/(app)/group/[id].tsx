@@ -23,11 +23,11 @@ import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
 import { groupService } from "@/services/groupService";
 import type { Expense, Group, GroupSummary } from "@/types";
-import { formatCurrency } from "@/utils/formatCurrency";
 import BalanceHeroCard from "@/components/groups/BalanceHeroCard";
 import GroupTabs, { type GroupTabType } from "@/components/groups/GroupTabs";
 import ExpenseList from "@/components/groups/ExpenseList";
 import DebtList from "@/components/groups/DebtList";
+import QuickPayModal from "@/components/groups/QuickPayModal";
 import TopNavigation from "@/components/common/TopNavigation";
 import { hapticFeedback } from "@/utils/haptics";
 import GroupDetailSkeleton from "@/components/skeletons/GroupDetailSkeleton";
@@ -45,7 +45,22 @@ export default function GroupDetailScreen() {
   const [summary, setSummary] = useState<GroupSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [settling, setSettling] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const [payModalData, setPayModalData] = useState<{
+    visible: boolean;
+    receiverName: string;
+    receiverIban?: string;
+    accountHolder?: string;
+    amount: number;
+    receiverClerkId: string;
+  }>({
+    visible: false,
+    receiverName: "",
+    amount: 0,
+    receiverClerkId: "",
+  });
 
   const fetchData = useCallback(async () => {
     if (!id || !user?.id) return;
@@ -97,44 +112,49 @@ export default function GroupDetailScreen() {
     }
   };
 
-  const handleSettleUp = (
-    receiverClerkId: string,
-    receiverName: string,
-    amount: number,
-  ) => {
-    if (!user?.id || !id) return;
-
-    showAlert({
-      title: "Settle Balance",
-      message: `Confirm payment of ${formatCurrency(amount)} to ${receiverName}?`,
-      type: "info",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Mark as Settled",
-          style: "default",
-          onPress: async () => {
-            try {
-              await expenseService.settleUp({
-                groupId: id,
-                payerClerkId: user.id,
-                receiverClerkId,
-              });
-              hapticFeedback.success();
-              fetchData();
-            } catch (error: any) {
-              showAlert({
-                title: "Error",
-                message:
-                  error?.response?.data?.message ||
-                  "Could not complete settlement.",
-                type: "warning",
-              });
-            }
-          },
-        },
-      ],
+  const handleOpenPayModal = (debtInfo: {
+    receiverClerkId: string;
+    receiverName: string;
+    receiverIban?: string;
+    accountHolder?: string;
+    amount: number;
+  }) => {
+    setPayModalData({
+      visible: true,
+      receiverName: debtInfo.receiverName,
+      receiverIban: debtInfo.receiverIban,
+      accountHolder: debtInfo.accountHolder,
+      amount: debtInfo.amount,
+      receiverClerkId: debtInfo.receiverClerkId,
     });
+  };
+
+  const handleConfirmSettlement = async () => {
+    if (!user?.id || !id || !payModalData.receiverClerkId) return;
+
+    try {
+      setSettling(true);
+      await expenseService.settleUp({
+        groupId: id,
+        payerClerkId: user.id,
+        receiverClerkId: payModalData.receiverClerkId,
+      });
+
+      hapticFeedback.success();
+      setPayModalData((prev) => ({ ...prev, visible: false }));
+      fetchData();
+    } catch (error: any) {
+      hapticFeedback.error();
+      showAlert({
+        title: "Settlement Error",
+        message:
+          error?.response?.data?.message ||
+          "Could not complete settlement. Please try again.",
+        type: "warning",
+      });
+    } finally {
+      setSettling(false);
+    }
   };
 
   return (
@@ -263,7 +283,7 @@ export default function GroupDetailScreen() {
               <DebtList
                 summary={summary}
                 currentUserId={user?.id}
-                onSettleUp={handleSettleUp}
+                onSettleUp={handleOpenPayModal}
               />
             )}
           </>
@@ -299,6 +319,17 @@ export default function GroupDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      <QuickPayModal
+        visible={payModalData.visible}
+        onClose={() => setPayModalData((prev) => ({ ...prev, visible: false }))}
+        receiverName={payModalData.receiverName}
+        receiverIban={payModalData.receiverIban}
+        accountHolder={payModalData.accountHolder}
+        amount={payModalData.amount}
+        onConfirmSettlement={handleConfirmSettlement}
+        loading={settling}
+      />
     </SafeScreen>
   );
 }

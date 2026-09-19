@@ -2,16 +2,18 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { CheckCircle2 } from "lucide-react-native";
 import type { GroupSummary } from "@/types";
 import { formatCurrency } from "@/utils/formatCurrency";
-
+import { hapticFeedback } from "@/utils/haptics";
 
 interface DebtListProps {
   summary: GroupSummary | null;
   currentUserId: string | undefined;
-  onSettleUp: (
-    receiverClerkId: string,
-    receiverName: string,
-    amount: number,
-  ) => void;
+  onSettleUp: (debtInfo: {
+    receiverClerkId: string;
+    receiverName: string;
+    receiverIban?: string;
+    accountHolder?: string;
+    amount: number;
+  }) => void;
 }
 
 export default function DebtList({
@@ -45,7 +47,7 @@ export default function DebtList({
 
   return (
     <View className="mt-5 gap-3">
-      {debts.map((debt, index) => {
+      {debts.map((debt: any, index: number) => {
         const iOwe = debt.from.clerkId === currentUserId;
         const owesMe = debt.to.clerkId === currentUserId;
 
@@ -89,11 +91,18 @@ export default function DebtList({
 
             {iOwe && (
               <TouchableOpacity
-                onPress={() =>
-                  onSettleUp(debt.to.clerkId, debt.to.name, debt.amount)
-                }
-                activeOpacity={0.85}
-                className="rounded-xl bg-coral px-3.5 py-2 active:scale-95"
+                onPress={() => {
+                  hapticFeedback.light();
+                  onSettleUp({
+                    receiverClerkId: debt.to.clerkId,
+                    receiverName: debt.to.name,
+                    receiverIban: debt.to.iban,
+                    accountHolder: debt.to.bankAccountHolder,
+                    amount: debt.amount,
+                  });
+                }}
+                activeOpacity={0.7}
+                className="rounded-xl bg-coral px-3.5 py-2"
               >
                 <Text
                   style={{ fontFamily: "SpaceGrotesk_700Bold" }}
