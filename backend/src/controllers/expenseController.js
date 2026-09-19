@@ -55,11 +55,9 @@ export const createExpense = async (req, res) => {
       );
 
       if (targetMemberIds.length === 0) {
-        return res
-          .status(400)
-          .json({
-            message: "At least one valid group member must be selected",
-          });
+        return res.status(400).json({
+          message: "At least one valid group member must be selected",
+        });
       }
     }
 
@@ -119,7 +117,7 @@ export const getGroupBalanceSummary = async (req, res) => {
 
     const group = await Group.findById(groupId).populate(
       "members",
-      "name email avatarUrl clerkId",
+      "name email avatarUrl clerkId iban bankAccountHolder",
     );
 
     if (!group) {
@@ -142,12 +140,16 @@ export const getGroupBalanceSummary = async (req, res) => {
     });
 
     expenses.forEach((expense) => {
-      const payerId = expense.paidBy.toString();
+      const payerId = expense.paidBy?._id
+        ? expense.paidBy._id.toString()
+        : expense.paidBy.toString();
 
       expense.splits.forEach((split) => {
-        const splitUserId = split.user.toString();
+        const splitUserId = split.user?._id
+          ? split.user._id.toString()
+          : split.user.toString();
 
-        if (!split.isSettled) {
+        if (!split.isSettled && splitUserId !== payerId) {
           if (balances[splitUserId]) {
             balances[splitUserId].netBalance -= split.amount;
           }
@@ -163,33 +165,34 @@ export const getGroupBalanceSummary = async (req, res) => {
 
     Object.values(balances).forEach((item) => {
       const balance = Number(item.netBalance.toFixed(2));
-      if (balance < 0) {
+      if (balance < -0.01) {
         debtors.push({ ...item, netBalance: balance });
-      } else if (balance > 0) {
-        creditors.push({ ...item, netBalance: balance }); // item yerine balance
+      } else if (balance > 0.01) {
+        creditors.push({ ...item, netBalance: balance });
       }
     });
 
     const debts = [];
-    let debtIndex = 0; // const yerine let
-    let creditIndex = 0; // const yerine let
+    let debtIndex = 0;
+    let creditIndex = 0;
 
     while (debtIndex < debtors.length && creditIndex < creditors.length) {
       const debtor = debtors[debtIndex];
       const creditor = creditors[creditIndex];
 
-      // ModifiedPathsSnapshot yerine Math.abs
       const debtAmount = Math.min(
         Math.abs(debtor.netBalance),
         creditor.netBalance,
       );
       const roundedAmount = Number(debtAmount.toFixed(2));
 
-      debts.push({
-        from: debtor.user,
-        to: creditor.user,
-        amount: roundedAmount,
-      });
+      if (roundedAmount > 0) {
+        debts.push({
+          from: debtor.user,
+          to: creditor.user,
+          amount: roundedAmount,
+        });
+      }
 
       debtor.netBalance += debtAmount;
       creditor.netBalance -= debtAmount;
@@ -198,17 +201,16 @@ export const getGroupBalanceSummary = async (req, res) => {
       if (creditor.netBalance < 0.01) creditIndex++;
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       totalExpense: Number(totalGroupExpense.toFixed(2)),
       balances: Object.values(balances),
       debts,
     });
   } catch (error) {
-    console.error("Error calculating summary:", error); // Gerçek hatayı görmek için error eklendi
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Error calculating summary:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 export const settleUp = async (req, res) => {
   try {
     const { groupId, payerClerkId, receiverClerkId } = req.body;
