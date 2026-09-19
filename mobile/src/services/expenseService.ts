@@ -4,6 +4,7 @@ import {
   Expense,
   GroupSummary,
   SettleUpPayload,
+  UpdateExpensePayload,
 } from "@/types";
 
 export const expenseService = {
@@ -44,6 +45,11 @@ export const expenseService = {
         data: { clerkId },
       },
     );
+    return res.data;
+  },
+  updateExpense: async (payload: UpdateExpensePayload) => {
+    const { expenseId, ...data } = payload;
+    const res = await api.put(`/expenses/${expenseId}`, data);
     return res.data;
   },
 };

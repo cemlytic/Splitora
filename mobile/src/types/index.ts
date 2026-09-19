@@ -74,3 +74,12 @@ export interface SettleUpPayload {
   payerClerkId: string;
   receiverClerkId: string;
 }
+
+export interface UpdateExpensePayload {
+  expenseId: string;
+  clerkId: string;
+  title: string;
+  amount: number;
+  category?: string;
+  splitUserIds: string[];
+}
