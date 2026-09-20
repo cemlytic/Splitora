@@ -44,6 +44,10 @@ const expenseSchema = new mongoose.Schema(
       required: true,
     },
     splits: [splitSchema],
+    receiptUrl: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true },
 );

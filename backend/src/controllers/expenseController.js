@@ -4,8 +4,15 @@ import { User } from "../db/models/User.js";
 
 export const createExpense = async (req, res) => {
   try {
-    const { groupId, clerkId, title, amount, category, splitUserIds } =
-      req.body;
+    const {
+      groupId,
+      clerkId,
+      title,
+      amount,
+      category,
+      splitUserIds,
+      receiptUrl,
+    } = req.body;
 
     if (!groupId || !clerkId || !title || !amount) {
       return res
@@ -82,6 +89,7 @@ export const createExpense = async (req, res) => {
       category: category || "other",
       paidBy: user._id,
       splits,
+      receiptUrl: receiptUrl || null,
     });
 
     const populatedExpense = await Expense.findById(newExpense._id)
@@ -298,7 +306,8 @@ export const getExpenseById = async (req, res) => {
 export const updateExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
-    const { clerkId, title, amount, category, splitUserIds } = req.body;
+    const { clerkId, title, amount, category, splitUserIds, receiptUrl } =
+      req.body;
 
     if (!clerkId || !title || !amount)
       return res.status(400).json({ message: "Missing fields" });
@@ -369,6 +378,10 @@ export const updateExpense = async (req, res) => {
     expense.amount = numericAmount;
     expense.category = category || expense.category;
     expense.splits = splits;
+
+    if (receiptUrl !== undefined) {
+      expense.receiptUrl = receiptUrl;
+    }
 
     await expense.save();
 

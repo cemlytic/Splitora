@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
 import {
@@ -20,8 +21,11 @@ import {
   PartyPopper,
   Check,
   Users,
+  Camera,
+  X,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
+import ReceiptPicker from "@/components/expenses/ReceiptPicker";
 import { expenseService } from "@/services/expenseService";
 import { groupService } from "@/services/groupService";
 import { hapticFeedback } from "@/utils/haptics";
@@ -47,6 +51,7 @@ export default function EditExpenseScreen() {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("general");
+  const [receiptImage, setReceiptImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
@@ -64,6 +69,7 @@ export default function EditExpenseScreen() {
         setTitle(expenseData.title);
         setAmount(expenseData.amount.toString());
         setSelectedCategory(expenseData.category || "general");
+        setReceiptImage(expenseData.receiptUrl || null);
 
         const activeIds = expenseData.splits.map((s) =>
           typeof s.user === "string" ? s.user : (s.user as any)._id,
@@ -109,6 +115,31 @@ export default function EditExpenseScreen() {
     }
   };
 
+  const handlePickImage = async () => {
+    hapticFeedback.light();
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.4,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]?.base64) {
+        setReceiptImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+        hapticFeedback.success();
+      }
+    } catch (error) {
+      console.error("Image pick error:", error);
+      showAlert({
+        title: "Image Error",
+        message: "Could not attach receipt image. Please try again.",
+        type: "warning",
+      });
+    }
+  };
+
   const handleUpdate = async () => {
     const trimmedTitle = title.trim();
     const parsedAmount = parseFloat(amount.replace(",", "."));
@@ -145,6 +176,7 @@ export default function EditExpenseScreen() {
         amount: parsedAmount,
         category: selectedCategory,
         splitUserIds: selectedMemberIds,
+        receiptUrl: receiptImage,
       });
       hapticFeedback.success();
       showAlert({
@@ -351,6 +383,11 @@ export default function EditExpenseScreen() {
             </View>
           </View>
 
+          <ReceiptPicker
+            imageUri={receiptImage}
+            onImageChange={setReceiptImage}
+          />
+
           <View className="mt-7">
             <View className="flex-row items-center justify-between mb-3 px-0.5">
               <View className="flex-row items-center gap-2">
@@ -433,7 +470,9 @@ export default function EditExpenseScreen() {
                           {memberName}
                           {isSelf && (
                             <Text
-                              style={{ fontFamily: "SpaceGrotesk_400Regular" }}
+                              style={{
+                                fontFamily: "SpaceGrotesk_400Regular",
+                              }}
                               className="text-muted text-xs"
                             >
                               {" "}

@@ -6,6 +6,8 @@ import {
   ScrollView,
   StatusBar,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from "react-native";
 import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -17,6 +19,8 @@ import {
   Receipt,
   UserCheck,
   Edit3,
+  Image as ImageIcon,
+  X,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
@@ -36,6 +40,7 @@ export default function ExpenseDetailScreen() {
   const [expense, setExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [showFullReceipt, setShowFullReceipt] = useState(false);
 
   const fetchExpense = useCallback(() => {
     if (!id) return;
@@ -212,7 +217,63 @@ export default function ExpenseDetailScreen() {
               </View>
             </View>
 
-            {/* Split Distribution Breakdown */}
+            {expense.receiptUrl && (
+              <View className="mt-7">
+                <View className="mb-3 flex-row items-center justify-between px-0.5">
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                    className="text-xs uppercase tracking-wider text-muted"
+                  >
+                    Attached Proof
+                  </Text>
+                  <View className="flex-row items-center gap-1">
+                    <Receipt size={11} color="#0E7C66" />
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                      className="text-[10px] text-teal tracking-wide"
+                    >
+                      RECEIPT ATTACHED
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    hapticFeedback.light();
+                    setShowFullReceipt(true);
+                  }}
+                  activeOpacity={0.88}
+                  className="group relative overflow-hidden rounded-3xl border border-ink/8 bg-cream p-2.5 shadow-sm"
+                >
+                  <Image
+                    source={{ uri: expense.receiptUrl }}
+                    style={{ width: "100%", height: 170, borderRadius: 18 }}
+                    contentFit="cover"
+                    transition={250}
+                  />
+
+                  <View className="absolute bottom-4 left-4 right-4 flex-row items-center justify-between rounded-2xl border border-white/20 bg-ink/75 px-3.5 py-2.5 backdrop-blur-md">
+                    <View className="flex-row items-center gap-2">
+                      <ImageIcon size={14} color="#FFF8F0" />
+                      <Text
+                        style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                        className="text-xs text-cream"
+                      >
+                        Receipt Invoice
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                      className="text-[11px] text-coral tracking-wide"
+                    >
+                      TAP TO EXPAND
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <View className="mt-8">
               <View className="mb-3 flex-row items-center justify-between px-0.5">
                 <Text
@@ -365,6 +426,52 @@ export default function ExpenseDetailScreen() {
           </>
         )}
       </ScrollView>
+
+      {expense?.receiptUrl && (
+        <Modal
+          visible={showFullReceipt}
+          transparent
+          statusBarTranslucent
+          animationType="fade"
+          onRequestClose={() => setShowFullReceipt(false)}
+        >
+          <View className="flex-1 items-center justify-center bg-ink/95 px-5">
+            <Pressable
+              onPress={() => setShowFullReceipt(false)}
+              className="absolute inset-0"
+            />
+
+            <View className="absolute top-14 left-6 right-6 z-20 flex-row items-center justify-between">
+              <View className="flex-row items-center gap-2 rounded-full border border-cream/15 bg-cream/10 px-3.5 py-1.5 backdrop-blur-md">
+                <Receipt size={14} color="#FFF8F0" />
+                <Text
+                  style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                  className="text-xs text-cream"
+                >
+                  {expense.title}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setShowFullReceipt(false)}
+                activeOpacity={0.8}
+                className="h-10 w-10 items-center justify-center rounded-full border border-cream/15 bg-cream/10"
+              >
+                <X size={18} color="#FFF8F0" strokeWidth={2.2} />
+              </TouchableOpacity>
+            </View>
+
+            <View className="h-[75%] w-full items-center justify-center overflow-hidden rounded-3xl">
+              <Image
+                source={{ uri: expense.receiptUrl }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="contain"
+                transition={200}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeScreen>
   );
 }
