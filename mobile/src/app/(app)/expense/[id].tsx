@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -6,10 +6,9 @@ import {
   ScrollView,
   StatusBar,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { Image } from "expo-image";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "@clerk/expo";
 import {
   Trash2,
@@ -17,6 +16,7 @@ import {
   Clock,
   Receipt,
   UserCheck,
+  Edit3,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
@@ -37,18 +37,54 @@ export default function ExpenseDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
+  const fetchExpense = useCallback(() => {
     if (!id) return;
-    setLoading(true);
     expenseService
       .getExpenseById(id)
       .then((data) => setExpense(data))
       .catch((err) => {
         console.error("Failed to load expense details:", err);
-        Alert.alert("Error", "Could not fetch expense details.");
+        showAlert({
+          title: "Error",
+          message: "Could not fetch expense details. Please try again.",
+          type: "warning",
+        });
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, showAlert]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchExpense();
+    }, [fetchExpense]),
+  );
+
+  const isPayer = expense?.paidBy?.clerkId === user?.id;
+
+  const hasSettledPayments = expense?.splits.some(
+    (split) => split.isSettled && split.user?.clerkId !== user?.id,
+  );
+
+  const handleEdit = () => {
+    if (!expense) return;
+
+    if (hasSettledPayments) {
+      hapticFeedback.warning();
+      showAlert({
+        title: "Cannot Edit Expense",
+        message:
+          "This expense cannot be edited because one or more members have already settled their payment.",
+        type: "warning",
+      });
+      return;
+    }
+
+    hapticFeedback.light();
+    router.push({
+      pathname: "/(app)/expense/edit",
+      params: { id: expense._id },
+    });
+  };
 
   const handleDelete = () => {
     if (!expense || !user?.id) return;
@@ -57,7 +93,7 @@ export default function ExpenseDetailScreen() {
     showAlert({
       title: "Delete Expense",
       message:
-        "Are you sure you want to delete this expense? Balances will recalculate automatically.",
+        "Are you sure you want to permanently remove this expense? Group balances will be updated automatically.",
       type: "destructive",
       buttons: [
         { text: "Cancel", style: "cancel" },
@@ -68,14 +104,17 @@ export default function ExpenseDetailScreen() {
             try {
               setDeleting(true);
               await expenseService.deleteExpense(expense._id, user.id);
+              hapticFeedback.success();
               router.back();
             } catch (error: any) {
               console.error("Delete error:", error?.response?.data || error);
-              Alert.alert(
-                "Deletion Failed",
-                error?.response?.data?.message ||
-                  "Could not delete this expense.",
-              );
+              showAlert({
+                title: "Deletion Failed",
+                message:
+                  error?.response?.data?.message ||
+                  "Could not delete this expense at this moment.",
+                type: "warning",
+              });
             } finally {
               setDeleting(false);
             }
@@ -84,8 +123,6 @@ export default function ExpenseDetailScreen() {
       ],
     });
   };
-
-  const isPayer = expense?.paidBy?.clerkId === user?.id;
 
   return (
     <SafeScreen includeBottom className="flex-1 bg-canvas px-6">
@@ -112,7 +149,7 @@ export default function ExpenseDetailScreen() {
         {loading ? (
           <ExpenseDetailSkeleton />
         ) : !expense ? (
-          <View className="items-center justify-center py-16">
+          <View className="items-center justify-center py-20">
             <Text
               style={{ fontFamily: "SpaceGrotesk_700Bold" }}
               className="text-base text-ink"
@@ -121,7 +158,7 @@ export default function ExpenseDetailScreen() {
             </Text>
             <TouchableOpacity onPress={() => router.back()} className="mt-4">
               <Text
-                style={{ fontFamily: "SpaceGrotesk_500Medium" }}
+                style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
                 className="text-sm text-teal"
               >
                 Go Back
@@ -175,8 +212,9 @@ export default function ExpenseDetailScreen() {
               </View>
             </View>
 
+            {/* Split Distribution Breakdown */}
             <View className="mt-8">
-              <View className="mb-3 flex-row items-center justify-between">
+              <View className="mb-3 flex-row items-center justify-between px-0.5">
                 <Text
                   style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
                   className="text-xs uppercase tracking-wider text-muted"
@@ -199,13 +237,13 @@ export default function ExpenseDetailScreen() {
                   return (
                     <View
                       key={index}
-                      className="flex-row items-center justify-between rounded-2xl border border-ink/6 bg-cream p-3.5"
+                      className="flex-row items-center justify-between rounded-2xl border border-ink/6 bg-cream p-3.5 shadow-sm"
                     >
                       <View className="flex-row items-center gap-3">
                         {member?.avatarUrl ? (
                           <Image
                             source={{ uri: member.avatarUrl }}
-                            style={{ width: 38, height: 38, borderRadius: 19 }}
+                            style={{ width: 36, height: 36, borderRadius: 18 }}
                             contentFit="cover"
                             transition={200}
                           />
@@ -262,7 +300,7 @@ export default function ExpenseDetailScreen() {
                           )}
                           <Text
                             style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                            className={`text-[10px] ${
+                            className={`text-[10px] tracking-wide ${
                               split.isSettled ? "text-teal" : "text-coral"
                             }`}
                           >
@@ -277,12 +315,36 @@ export default function ExpenseDetailScreen() {
             </View>
 
             {isPayer && (
-              <View className="mt-10">
+              <View className="mt-9 flex-row items-center gap-3">
+                <TouchableOpacity
+                  onPress={handleEdit}
+                  disabled={deleting}
+                  activeOpacity={0.75}
+                  className={`h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border active:scale-[0.99] ${
+                    hasSettledPayments
+                      ? "border-ink/10 bg-ink/5 opacity-50"
+                      : "border-ink/15 bg-cream"
+                  }`}
+                >
+                  <Edit3
+                    size={16}
+                    color={hasSettledPayments ? "#8A8680" : "#1B1B1F"}
+                  />
+                  <Text
+                    style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                    className={`text-[14px] ${
+                      hasSettledPayments ? "text-muted" : "text-ink"
+                    }`}
+                  >
+                    Edit
+                  </Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   onPress={handleDelete}
                   disabled={deleting}
                   activeOpacity={0.75}
-                  className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/10"
+                  className="h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/10 active:scale-[0.99]"
                 >
                   {deleting ? (
                     <ActivityIndicator color="#FF6B4A" />
@@ -293,7 +355,7 @@ export default function ExpenseDetailScreen() {
                         style={{ fontFamily: "SpaceGrotesk_700Bold" }}
                         className="text-[14px] text-coral"
                       >
-                        Delete Expense
+                        Delete
                       </Text>
                     </>
                   )}

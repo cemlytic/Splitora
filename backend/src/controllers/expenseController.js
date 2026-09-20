@@ -268,6 +268,94 @@ export const getExpenseById = async (req, res) => {
   }
 };
 
+export const updateExpense = async (req, res) => {
+  try {
+    const { expenseId } = req.params;
+    const { clerkId, title, amount, category, splitUserIds } = req.body;
+
+    if (!clerkId || !title || !amount)
+      return res.status(400).json({ message: "Missing fields" });
+
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      return res
+        .status(400)
+        .json({ message: "Amount must be a positive number" });
+    }
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ message: "USer not found" });
+    }
+
+    const expense = await Expense.findById(expenseId);
+    if (!expense) return res.status(404).json({ message: "Expense not found" });
+
+    if (expense.paidBy.toString() !== user._id.toString())
+      return res.status(403).json({ message: "You are not authorized." });
+
+    const hasSettledPayments = expense.splits.some(
+      (split) =>
+        split.isSettled && split.user.toString() !== user._id.toString(),
+    );
+
+    if (hasSettledPayments)
+      return res.status(400).json({
+        message:
+          "Cannot edit an expense with settled settlements. Settle payments exist.",
+      });
+
+    const group = await Group.findById(expense.groupId);
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    const allGroupMemberIds = group.members.map((m) =>
+      m._id ? m._id.toString() : m.toString(),
+    );
+
+    let targetMemberIds = allGroupMemberIds;
+    if (Array.isArray(splitUserIds) && splitUserIds.length > 0) {
+      targetMemberIds = allGroupMemberIds.filter((id) =>
+        splitUserIds.map((s) => s.toString()).includes(id),
+      );
+
+      if (targetMemberIds.length === 0) {
+        return res.status(400).json({
+          message: "At least one valid group member must be selected",
+        });
+      }
+    }
+
+    const memberCount = targetMemberIds.length;
+    const splitAmount = Number((numericAmount / memberCount).toFixed(2));
+    const payerIdStr = user._id.toString();
+
+    const splits = targetMemberIds.map((memberIdStr) => {
+      const isPayer = memberIdStr === payerIdStr;
+      return {
+        user: memberIdStr,
+        amount: splitAmount,
+        isSettled: isPayer,
+      };
+    });
+
+    expense.title = title.trim();
+    expense.amount = numericAmount;
+    expense.category = category || expense.category;
+    expense.splits = splits;
+
+    await expense.save();
+
+    const updatedExpense = await Expense.findById(expense._id)
+      .populate("paidBy", "name email clerkId avatarUrl")
+      .populate("splits.user", "name email clerkId avatarUrl");
+
+    return res.status(200).json(updatedExpense);
+  } catch (error) {
+    console.error("Error updating expense: ", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const deleteExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
