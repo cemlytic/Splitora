@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import * as Clipboard from "expo-clipboard";
 import {
   View,
   Text,
@@ -21,6 +22,7 @@ import {
   Check,
   ShieldCheck,
   Pencil,
+  Copy,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import SettingsSkeleton from "@/components/skeletons/SettingsSkeleton";
@@ -43,6 +45,7 @@ export default function SettingsScreen() {
   const [initialHolder, setInitialHolder] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [copiedIban, setCopiedIban] = useState(false);
   const [isIbanFocused, setIsIbanFocused] = useState(false);
   const [isHolderFocused, setIsHolderFocused] = useState(false);
 
@@ -74,6 +77,14 @@ export default function SettingsScreen() {
   const hasChanges =
     iban.trim() !== initialIban.trim() ||
     accountHolder.trim() !== initialHolder.trim();
+
+  const handleCopyIban = async () => {
+    if (!iban) return;
+    await Clipboard.setStringAsync(iban.replace(/\s+/g, ""));
+    hapticFeedback.success();
+    setCopiedIban(true);
+    setTimeout(() => setCopiedIban(false), 2000);
+  };
 
   const handleSavePaymentInfo = async () => {
     if (!user?.id) return;
@@ -273,7 +284,7 @@ export default function SettingsScreen() {
                 Profile Information
               </Text>
 
-              <View className="rounded-2xl border border-ink/6 bg-cream overflow-hidden">
+              <View className="rounded-2xl border border-ink/6 bg-cream overflow-hidden shadow-sm">
                 <View className="flex-row items-center justify-between p-4 border-b border-ink/5">
                   <View className="flex-row items-center gap-3">
                     <View className="h-8 w-8 items-center justify-center rounded-xl bg-ink/5">
@@ -346,11 +357,12 @@ export default function SettingsScreen() {
                     style={{ fontFamily: "SpaceGrotesk_400Regular" }}
                     className="flex-1 text-xs leading-5 text-muted"
                   >
-                    Group members can copy these details to transfer their balance directly to your bank account.
+                    Space members can copy these details to transfer their
+                    balance directly to your bank account.
                   </Text>
                 </View>
 
-                <View className="gap-4">
+                <View className="gap-3.5">
                   <View>
                     <Text
                       style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
@@ -361,7 +373,7 @@ export default function SettingsScreen() {
                     <View
                       className={`rounded-2xl border px-4 py-3 transition-all ${
                         !isEditing
-                          ? "border-transparent bg-canvas/60 opacity-80"
+                          ? "border-transparent bg-canvas/60"
                           : isHolderFocused
                             ? "border-teal bg-canvas shadow-sm"
                             : "border-ink/8 bg-canvas"
@@ -393,9 +405,9 @@ export default function SettingsScreen() {
                       International Bank Account Number (IBAN)
                     </Text>
                     <View
-                      className={`rounded-2xl border px-4 py-3 transition-all ${
+                      className={`flex-row items-center justify-between rounded-2xl border pl-4 pr-2.5 py-1.5 transition-all ${
                         !isEditing
-                          ? "border-transparent bg-canvas/60 opacity-80"
+                          ? "border-transparent bg-canvas/60"
                           : isIbanFocused
                             ? "border-teal bg-canvas shadow-sm"
                             : "border-ink/8 bg-canvas"
@@ -403,7 +415,9 @@ export default function SettingsScreen() {
                     >
                       <TextInput
                         value={iban}
-                        onChangeText={(txt) => setIban(formatIban(txt))}
+                        onChangeText={(txt) =>
+                          setIban(formatIban(txt.toUpperCase()))
+                        }
                         editable={isEditing}
                         placeholder="GB29 NWBK 6016 1331 9268 19"
                         placeholderTextColor="#8A8680"
@@ -418,7 +432,46 @@ export default function SettingsScreen() {
                           letterSpacing: 0.8,
                           color: "#1B1B1F",
                         }}
+                        className="flex-1 py-2"
                       />
+
+                      {!isEditing && iban ? (
+                        <TouchableOpacity
+                          onPress={handleCopyIban}
+                          activeOpacity={0.7}
+                          className={`flex-row items-center gap-1.5 rounded-xl border px-3 py-2 ${
+                            copiedIban
+                              ? "border-teal bg-teal"
+                              : "border-ink/8 bg-cream shadow-sm"
+                          }`}
+                        >
+                          {copiedIban ? (
+                            <>
+                              <Check
+                                size={12}
+                                color="#FFF8F0"
+                                strokeWidth={2.5}
+                              />
+                              <Text
+                                style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                                className="text-[11px] text-cream"
+                              >
+                                Copied
+                              </Text>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={12} color="#1B1B1F" strokeWidth={2} />
+                              <Text
+                                style={{ fontFamily: "SpaceGrotesk_700Bold" }}
+                                className="text-[11px] text-ink"
+                              >
+                                Copy
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                   </View>
 
@@ -429,7 +482,7 @@ export default function SettingsScreen() {
                         setIsEditing(true);
                       }}
                       activeOpacity={0.8}
-                      className="mt-1 h-12 flex-row items-center justify-center gap-2 rounded-2xl border border-ink/10 bg-canvas active:scale-[0.99]"
+                      className="mt-2 h-12 w-full flex-row items-center justify-center gap-2 rounded-2xl border border-ink/10 bg-canvas active:scale-[0.99]"
                     >
                       <Pencil size={14} color="#1B1B1F" strokeWidth={2} />
                       <Text
@@ -440,7 +493,7 @@ export default function SettingsScreen() {
                       </Text>
                     </TouchableOpacity>
                   ) : (
-                    <View className="mt-1 flex-row items-center gap-2">
+                    <View className="mt-2 flex-row items-center gap-2.5">
                       {initialIban || initialHolder ? (
                         <TouchableOpacity
                           onPress={() => {
@@ -468,9 +521,20 @@ export default function SettingsScreen() {
                           (!hasChanges && (!!initialIban || !!initialHolder))
                         }
                         activeOpacity={0.8}
+                        style={
+                          hasChanges || (!initialIban && !initialHolder)
+                            ? {
+                                shadowColor: "#1B1B1F",
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.16,
+                                shadowRadius: 8,
+                                elevation: 3,
+                              }
+                            : undefined
+                        }
                         className={`h-12 flex-row items-center justify-center gap-2 rounded-2xl active:scale-[0.99] ${
                           !hasChanges && (initialIban || initialHolder)
-                            ? "bg-ink/20 flex-1"
+                            ? "bg-ink/15 flex-1"
                             : "bg-ink flex-1"
                         }`}
                       >
@@ -478,7 +542,11 @@ export default function SettingsScreen() {
                           <ActivityIndicator color="#FFF8F0" size="small" />
                         ) : (
                           <>
-                            <Check size={14} color="#FFF8F0" strokeWidth={2.5} />
+                            <Check
+                              size={14}
+                              color="#FFF8F0"
+                              strokeWidth={2.5}
+                            />
                             <Text
                               style={{ fontFamily: "SpaceGrotesk_700Bold" }}
                               className="text-xs text-cream"
