@@ -2,14 +2,17 @@ import { Router } from "express";
 import {
   createGroup,
   joinGroup,
-  getUserGroups
+  getUserGroups,
+  leaveGroup,
+  deleteGroup,
 } from "../controllers/groupControllers.js";
 
 const router = Router();
 
 router.post("/", createGroup);
-router.post("/join",joinGroup);
-router.get("/user/:clerkId", getUserGroups)
+router.post("/join", joinGroup);
+router.post("/:groupId/leave", leaveGroup);
+router.get("/user/:clerkId", getUserGroups);
+router.delete("/:groupId", deleteGroup);
 
-
-export default router
+export default router;

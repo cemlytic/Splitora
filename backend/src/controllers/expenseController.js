@@ -124,7 +124,12 @@ export const getGroupBalanceSummary = async (req, res) => {
       return res.status(404).json({ message: "Group not found" });
     }
 
-    const expenses = await Expense.find({ groupId });
+    const expenses = await Expense.find({ groupId })
+      .populate("paidBy", "name email clerkId avatarUrl iban bankAccountHolder")
+      .populate(
+        "splits.user",
+        "name email clerkId avatarUrl iban bankAccountHolder",
+      );
 
     const totalGroupExpense = expenses.reduce(
       (sum, exp) => sum + exp.amount,
@@ -132,6 +137,7 @@ export const getGroupBalanceSummary = async (req, res) => {
     );
 
     const balances = {};
+
     group.members.forEach((member) => {
       balances[member._id.toString()] = {
         user: member,
@@ -140,22 +146,36 @@ export const getGroupBalanceSummary = async (req, res) => {
     });
 
     expenses.forEach((expense) => {
-      const payerId = expense.paidBy?._id
+      if (!expense.paidBy) return;
+
+      const payerId = expense.paidBy._id
         ? expense.paidBy._id.toString()
         : expense.paidBy.toString();
 
+      if (!balances[payerId]) {
+        balances[payerId] = {
+          user: expense.paidBy,
+          netBalance: 0,
+        };
+      }
+
       expense.splits.forEach((split) => {
-        const splitUserId = split.user?._id
+        if (!split.user) return;
+
+        const splitUserId = split.user._id
           ? split.user._id.toString()
           : split.user.toString();
 
+        if (!balances[splitUserId]) {
+          balances[splitUserId] = {
+            user: split.user,
+            netBalance: 0,
+          };
+        }
+
         if (!split.isSettled && splitUserId !== payerId) {
-          if (balances[splitUserId]) {
-            balances[splitUserId].netBalance -= split.amount;
-          }
-          if (balances[payerId]) {
-            balances[payerId].netBalance += split.amount;
-          }
+          balances[splitUserId].netBalance -= split.amount;
+          balances[payerId].netBalance += split.amount;
         }
       });
     });
@@ -166,9 +186,9 @@ export const getGroupBalanceSummary = async (req, res) => {
     Object.values(balances).forEach((item) => {
       const balance = Number(item.netBalance.toFixed(2));
       if (balance < -0.01) {
-        debtors.push({ ...item, netBalance: balance });
+        debtors.push({ user: item.user, netBalance: balance });
       } else if (balance > 0.01) {
-        creditors.push({ ...item, netBalance: balance });
+        creditors.push({ user: item.user, netBalance: balance });
       }
     });
 
@@ -176,9 +196,15 @@ export const getGroupBalanceSummary = async (req, res) => {
     let debtIndex = 0;
     let creditIndex = 0;
 
-    while (debtIndex < debtors.length && creditIndex < creditors.length) {
-      const debtor = debtors[debtIndex];
-      const creditor = creditors[creditIndex];
+    const workingDebtors = debtors.map((d) => ({ ...d }));
+    const workingCreditors = creditors.map((c) => ({ ...c }));
+
+    while (
+      debtIndex < workingDebtors.length &&
+      creditIndex < workingCreditors.length
+    ) {
+      const debtor = workingDebtors[debtIndex];
+      const creditor = workingCreditors[creditIndex];
 
       const debtAmount = Math.min(
         Math.abs(debtor.netBalance),
@@ -211,6 +237,7 @@ export const getGroupBalanceSummary = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
 export const settleUp = async (req, res) => {
   try {
     const { groupId, payerClerkId, receiverClerkId } = req.body;

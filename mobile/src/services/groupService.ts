@@ -16,4 +16,16 @@ export const groupService = {
     const response = await api.post<Group>("/groups/join", payload);
     return response.data;
   },
+
+  leaveGroup: async (groupId: string, clerkId: string) => {
+    const res = await api.post(`/groups/${groupId}/leave`, {clerkId});
+    return res.data;
+  },
+
+  deleteGroup: async (groupId: string, clerkId: string) => {
+    const res = await api.delete(`/groups/${groupId}`, {
+      data: { clerkId },
+    });
+    return res.data;
+  },
 };
