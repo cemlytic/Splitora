@@ -40,6 +40,7 @@ export interface Expense {
   category: string;
   paidBy: GroupMember;
   splits: ExpenseSplit[];
+  receiptUrl?: string | null;
   createdAt: string;
 }
 
@@ -67,6 +68,7 @@ export interface CreateExpensePayload {
   amount: number | string;
   category?: string;
   splitUserIds: string[];
+  receiptUrl?: string | null;
 }
 
 export interface SettleUpPayload {
@@ -82,4 +84,5 @@ export interface UpdateExpensePayload {
   amount: number;
   category?: string;
   splitUserIds: string[];
+  receiptUrl?: string | null;
 }
