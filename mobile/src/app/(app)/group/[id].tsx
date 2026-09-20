@@ -18,6 +18,7 @@ import {
   Check,
   KeyRound,
   Users,
+  Download,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { expenseService } from "@/services/expenseService";
@@ -32,6 +33,7 @@ import TopNavigation from "@/components/common/TopNavigation";
 import { hapticFeedback } from "@/utils/haptics";
 import GroupDetailSkeleton from "@/components/skeletons/GroupDetailSkeleton";
 import { useAppAlert } from "@/context/AlertContext";
+import { exportGroupToCSV } from "@/utils/exportGroupReport";
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -47,6 +49,7 @@ export default function GroupDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [settling, setSettling] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [payModalData, setPayModalData] = useState<{
     visible: boolean;
@@ -157,6 +160,24 @@ export default function GroupDetailScreen() {
     }
   };
 
+  const handleExportReport = async () => {
+    if (!group) return;
+    try {
+      setExporting(true);
+      hapticFeedback.light();
+      await exportGroupToCSV(group, expenses, summary);
+    } catch (error: any) {
+      hapticFeedback.error();
+      showAlert({
+        title: "Export failed",
+        message: error?.message || "Could not export financial report.",
+        type: "warning",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <SafeScreen includeBottom className="flex-1 bg-canvas">
       <StatusBar barStyle="dark-content" />
@@ -173,6 +194,15 @@ export default function GroupDetailScreen() {
         </Text>
 
         <View className="flex-row items-center gap-2">
+          <TouchableOpacity
+            onPress={handleExportReport}
+            disabled={exporting || loading}
+            activeOpacity={0.7}
+            className="h-10 w-10 items-center justify-center rounded-full border border-ink/8 bg-cream"
+          >
+            <Download size={17} color="#1B1B1F" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() =>
               router.push({
