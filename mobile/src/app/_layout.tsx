@@ -40,7 +40,7 @@ function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
     if (!isSignedIn && !inAuthGroup) {
       router.replace("/(auth)/login");
     } else if (isSignedIn && inAuthGroup) {
-      router.replace("/(app)");
+      router.replace("/");
     }
   }, [isLoaded, isSignedIn, segments, fontsLoaded]);
 
