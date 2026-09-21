@@ -16,4 +16,11 @@ export const userService = {
     const res = await api.put(`/users/${clerkId}/payment-details`, data);
     return res.data;
   },
+  updatePushToken: async (clerkId: string, pushToken: string | null) => {
+    const res = await api.post("/users/push-token", {
+      clerkId,
+      pushToken,
+    });
+    return res.data;
+  },
 };

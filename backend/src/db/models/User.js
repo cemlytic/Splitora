@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    pushToken: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,

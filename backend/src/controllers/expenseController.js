@@ -1,6 +1,7 @@
 import { Expense } from "../db/models/Expense.js";
 import { Group } from "../db/models/Group.js";
 import { User } from "../db/models/User.js";
+import { sendPushNotifications } from "../utils/pushNotifications.js";
 
 export const createExpense = async (req, res) => {
   try {
@@ -95,6 +96,34 @@ export const createExpense = async (req, res) => {
     const populatedExpense = await Expense.findById(newExpense._id)
       .populate("paidBy", "name email clerkId avatarUrl")
       .populate("splits.user", "name email clerkId avatarUrl");
+
+    const debtorUserIds = targetMemberIds.filter((id) => id !== payerIdStr);
+    if (debtorUserIds > 0) {
+      User.find({
+        _id: { $in: debtorUserIds },
+        pushToken: { $ne: null, $exists: true },
+      })
+        .select("pushToken")
+        .then((recipients) => {
+          const messages = recipients
+            .filter((r) => r.pushToken)
+            .map((r) => ({
+              to: r.pushToken,
+              sound: "default",
+              title: `${group.name}: New Expense`,
+              body: `${user.name} added "${title.trim()}" ($${splitAmount} owes).`,
+              data: {
+                type: "EXPENSE_CREATED",
+                groupId: group._id.toString(),
+                expenseId: newExpense._id.toString(),
+              },
+            }));
+          return sendPushNotifications(messages);
+        })
+        .catch((error) =>
+          console.error("Error sending expense push notificaitons.", error),
+        );
+    }
 
     res.status(201).json(populatedExpense);
   } catch (error) {
@@ -275,6 +304,26 @@ export const settleUp = async (req, res) => {
         arrayFilters: [{ "elem.user": payer._id }],
       },
     );
+
+    if (receiver.pushToken) {
+      sendPushNotifications([
+        {
+          to: receiver.pushToken,
+          sound: "default",
+          title: "Payment Received",
+          body: `${payer.name} marked their payment to you as settled${
+            group ? ` in "${group.name}"` : ""
+          }.`,
+          data: {
+            type: "SETTLEMENT_CONFIRMED",
+            groupId,
+            payerClerkId,
+          },
+        },
+      ]).catch((err) =>
+        console.error("Error sending settleUp push notification:", err),
+      );
+    }
 
     res.status(200).json({
       message: "Debts settled successfully",
