@@ -16,26 +16,36 @@ export const createExpense = async (req, res) => {
     } = req.body;
 
     if (!groupId || !clerkId || !title || !amount) {
-      return res
-        .status(400)
-        .json({ message: "All required fields must be provided" });
+      return res.status(400).json({
+        success: false,
+        message:
+          "Missing required parameters: groupId, clerkId, title, and amount are mandatory.",
+      });
     }
 
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      return res
-        .status(400)
-        .json({ message: "Amount must be a positive number" });
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid transaction amount. Amount must be a positive numeric value.",
+      });
     }
 
     const user = await User.findOne({ clerkId });
     if (!user) {
-      return res.status(404).json({ message: "Paying user not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Issuer account not found. Authorization declined.",
+      });
     }
 
     const group = await Group.findById(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Target expense group not found.",
+      });
     }
 
     const isMember = group.members.some((member) => {
@@ -46,9 +56,11 @@ export const createExpense = async (req, res) => {
     });
 
     if (!isMember) {
-      return res
-        .status(403)
-        .json({ message: "You are not a member of this group" });
+      return res.status(403).json({
+        success: false,
+        message:
+          "Unauthorized transaction. User does not have membership in this group.",
+      });
     }
 
     const allGroupMemberIds = group.members.map((m) =>
@@ -64,14 +76,14 @@ export const createExpense = async (req, res) => {
 
       if (targetMemberIds.length === 0) {
         return res.status(400).json({
-          message: "At least one valid group member must be selected",
+          success: false,
+          message: "No eligible recipients selected for expense allocation.",
         });
       }
     }
 
     const memberCount = targetMemberIds.length;
     const splitAmount = Number((numericAmount / memberCount).toFixed(2));
-
     const payerIdStr = user._id.toString();
 
     const splits = targetMemberIds.map((memberIdStr) => {
@@ -87,7 +99,7 @@ export const createExpense = async (req, res) => {
       groupId: group._id,
       title: title.trim(),
       amount: numericAmount,
-      category: category || "other",
+      category: category || "general",
       paidBy: user._id,
       splits,
       receiptUrl: receiptUrl || null,
@@ -98,37 +110,64 @@ export const createExpense = async (req, res) => {
       .populate("splits.user", "name email clerkId avatarUrl");
 
     const debtorUserIds = targetMemberIds.filter((id) => id !== payerIdStr);
-    if (debtorUserIds > 0) {
+
+    if (debtorUserIds.length > 0) {
       User.find({
         _id: { $in: debtorUserIds },
-        pushToken: { $ne: null, $exists: true },
+        pushToken: { $exists: true, $ne: null },
       })
-        .select("pushToken")
-        .then((recipients) => {
-          const messages = recipients
-            .filter((r) => r.pushToken)
-            .map((r) => ({
-              to: r.pushToken,
-              sound: "default",
-              title: `${group.name}: New Expense`,
-              body: `${user.name} added "${title.trim()}" ($${splitAmount} owes).`,
-              data: {
-                type: "EXPENSE_CREATED",
-                groupId: group._id.toString(),
-                expenseId: newExpense._id.toString(),
-              },
-            }));
-          return sendPushNotifications(messages);
+        .select("_id name pushToken clerkId")
+        .then(async (recipients) => {
+          const validRecipients = recipients.filter(
+            (r) => r.pushToken && r.pushToken.startsWith("ExponentPushToken"),
+          );
+
+          if (validRecipients.length === 0) {
+            console.warn(
+              `[PushService] No valid push tokens found for group: ${group._id.toString()}`,
+            );
+            return;
+          }
+
+          const messages = validRecipients.map((recipient) => ({
+            to: recipient.pushToken,
+            sound: "default",
+            title: `${group.name}: New Expense Added`,
+            body: `${user.name || "A member"} paid for "${title.trim()}". Your share: $${splitAmount}`,
+            data: {
+              type: "EXPENSE_CREATED",
+              groupId: group._id.toString(),
+              expenseId: newExpense._id.toString(),
+            },
+          }));
+
+          console.info(
+            `[PushService] Dispatching ${messages.length} push notification(s) for expense: ${newExpense._id.toString()}`,
+          );
+
+          const result = await sendPushNotifications(messages);
+          console.info("[PushService] Delivery batch executed:", result);
         })
         .catch((error) =>
-          console.error("Error sending expense push notificaitons.", error),
+          console.error(
+            "[PushService] Notification dispatch failure:",
+            error.message,
+          ),
         );
     }
 
-    res.status(201).json(populatedExpense);
+    return res.status(201).json({
+      success: true,
+      message: "Expense recorded successfully.",
+      data: populatedExpense,
+    });
   } catch (error) {
-    console.error("Error creating expense:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("[ExpenseController:createExpense] Internal error:", error);
+    return res.status(500).json({
+      success: false,
+      message:
+        "An internal server error occurred while processing the expense.",
+    });
   }
 };
 
@@ -283,8 +322,11 @@ export const settleUp = async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    const payer = await User.findOne({ clerkId: payerClerkId });
-    const receiver = await User.findOne({ clerkId: receiverClerkId });
+    const [payer, receiver, group] = await Promise.all([
+      User.findOne({ clerkId: payerClerkId }),
+      User.findOne({ clerkId: receiverClerkId }),
+      Group.findById(groupId),
+    ]);
 
     if (!payer || !receiver) {
       return res.status(404).json({ message: "User not found" });
@@ -310,18 +352,19 @@ export const settleUp = async (req, res) => {
         {
           to: receiver.pushToken,
           sound: "default",
-          title: "Payment Received",
-          body: `${payer.name} marked their payment to you as settled${
-            group ? ` in "${group.name}"` : ""
-          }.`,
+          title: "Payment Settled",
+          body: `${payer.name || "A member"} settled their debt${group ? ` in "${group.name}"` : ""}.`,
           data: {
             type: "SETTLEMENT_CONFIRMED",
-            groupId,
+            groupId: groupId.toString(),
             payerClerkId,
           },
         },
       ]).catch((err) =>
-        console.error("Error sending settleUp push notification:", err),
+        console.error(
+          "[PushService] Settlement notification delivery failure:",
+          err.message,
+        ),
       );
     }
 
@@ -370,7 +413,7 @@ export const updateExpense = async (req, res) => {
 
     const user = await User.findOne({ clerkId });
     if (!user) {
-      return res.status(404).json({ message: "USer not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     const expense = await Expense.findById(expenseId);
