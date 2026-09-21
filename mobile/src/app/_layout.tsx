@@ -12,6 +12,8 @@ import {
 import { tokenCache } from "@/utils/tokenCache";
 import "../global.css";
 import { AlertProvider } from "@/context/AlertContext";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useNotificationObserver } from "@/hooks/useNotificationObserver";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -25,6 +27,10 @@ function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
   const { isLoaded, isSignedIn } = useAuth();
   const segments = useSegments() as string[];
   const router = useRouter();
+
+  usePushNotifications();
+
+  useNotificationObserver();
 
   useEffect(() => {
     if (!isLoaded || !fontsLoaded) return;
@@ -41,7 +47,6 @@ function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
   if (!isLoaded || !fontsLoaded) {
     return null;
   }
-
 
   return (
     <AlertProvider>

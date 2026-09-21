@@ -15,7 +15,7 @@ app.use("/api/expenses", expenseRoutes);
 const PORT = env.PORT;
 
 connectDB().then(() => {
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on ${PORT}`);
   });
 });

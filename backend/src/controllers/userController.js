@@ -54,6 +54,30 @@ export const deleteUserAccount = async (req, res) => {
   }
 };
 
+export const updatePushToken = async (req, res) => {
+  try {
+    const { clerkId, pushToken } = req.body;
+
+    if (!clerkId)
+      return res.status(400).json({ message: "Clerk id is required." });
+
+    const user = await User.findOneAndUpdate(
+      { clerkId },
+      { pushToken: pushToken || null },
+      { new: true },
+    );
+
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    return res
+      .status(200)
+      .json({ message: "Push token updated successfully." });
+  } catch (error) {
+    console.error("Error updating push token:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const updatePaymentDetails = async (req, res) => {
   try {
     const { clerkId } = req.params;
@@ -61,13 +85,13 @@ export const updatePaymentDetails = async (req, res) => {
 
     const sanitizedIban = iban ? iban.replace(/\s+/g, "").toUpperCase() : "";
 
-const updatedUser = await User.findOneAndUpdate(
+    const updatedUser = await User.findOneAndUpdate(
       { clerkId },
       {
         iban: sanitizedIban,
         bankAccountHolder: bankAccountHolder?.trim() || "",
       },
-      { new: true }
+      { new: true },
     );
     if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });

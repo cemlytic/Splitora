@@ -2,6 +2,7 @@ node_modules/
 jspm_packages/
 web_modules/
 
+android/
 
 .env
 .env.*
@@ -63,6 +64,7 @@ expo-env.d.ts
 
 # Native
 .kotlin/
+**/google-services.json
 *.orig.*
 *.jks
 *.p8
