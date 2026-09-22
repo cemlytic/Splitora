@@ -12,7 +12,7 @@ import {
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useUser } from "@clerk/expo";
+import { useCurrentUser } from "@/context/UserContext";
 import {
   Receipt,
   UtensilsCrossed,
@@ -21,8 +21,6 @@ import {
   PartyPopper,
   Check,
   Users,
-  Camera,
-  X,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import ReceiptPicker from "@/components/expenses/ReceiptPicker";
@@ -45,7 +43,7 @@ const CATEGORIES = [
 export default function EditExpenseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useUser();
+  const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [title, setTitle] = useState("");
@@ -60,7 +58,7 @@ export default function EditExpenseScreen() {
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!id || !user?.id) return;
+    if (!id || !currentUser) return;
 
     setFetching(true);
     expenseService
@@ -76,7 +74,7 @@ export default function EditExpenseScreen() {
         );
         setSelectedMemberIds(activeIds);
 
-        const userGroups = await groupService.getUserGroups(user.id);
+        const userGroups = await groupService.getUserGroups();
         const current = userGroups.find((g) => g._id === expenseData.groupId);
         if (current) setGroup(current);
       })
@@ -89,7 +87,7 @@ export default function EditExpenseScreen() {
         });
       })
       .finally(() => setFetching(false));
-  }, [id, user?.id, showAlert]);
+  }, [id, currentUser, showAlert]);
 
   const toggleMember = (memberId: string) => {
     hapticFeedback.light();
@@ -165,13 +163,12 @@ export default function EditExpenseScreen() {
       return;
     }
 
-    if (!user?.id || !id) return;
+    if (!currentUser || !id) return;
 
     try {
       setLoading(true);
       await expenseService.updateExpense({
         expenseId: id,
-        clerkId: user.id,
         title: trimmedTitle,
         amount: parsedAmount,
         category: selectedCategory,
@@ -421,7 +418,7 @@ export default function EditExpenseScreen() {
               {(group?.members as any[])?.map((member) => {
                 const mId = typeof member === "string" ? member : member._id;
                 const isSelected = selectedMemberIds.includes(mId);
-                const isSelf = member?.clerkId === user?.id;
+                const isSelf = member?._id === currentUser?._id;
                 const memberName = member?.name || "Member";
                 const avatarUrl = member?.avatarUrl;
 

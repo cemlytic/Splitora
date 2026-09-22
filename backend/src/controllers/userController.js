@@ -4,9 +4,10 @@ import { Expense } from "../db/models/Expense.js";
 
 export const syncUser = async (req, res) => {
   try {
-    const { clerkId, email, name, avatarUrl } = req.body;
+    const clerkId = req.clerkId;
+    const { email, name, avatarUrl } = req.body;
 
-    if (!clerkId || !email || !name) {
+    if (!email || !name) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -25,20 +26,14 @@ export const syncUser = async (req, res) => {
 
 export const deleteUserAccount = async (req, res) => {
   try {
-    const { clerkId } = req.params;
-
-    const user = await User.findOne({ clerkId });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    const userId = user._id;
+    const userId = req.user._id;
 
     await Group.updateMany({ members: userId }, { $pull: { members: userId } });
 
     const emptyGroups = await Group.find({ members: { $size: 0 } });
     const emptyGroupIds = emptyGroups.map((g) => g._id);
 
-    if (emptyGroupIds.length > 0) {
+    if (emptyGroups.length > 0) {
       await Expense.deleteMany({ groupId: { $in: emptyGroupIds } });
       await Group.deleteMany({ _id: { $in: emptyGroupIds } });
     }
@@ -47,27 +42,22 @@ export const deleteUserAccount = async (req, res) => {
 
     return res
       .status(200)
-      .json({ message: "User account and related references deleted" });
+      .json({ message: "User account and related references deleted." });
   } catch (error) {
-    console.error("Error deleting account", error);
+    console.error("Error deleting account ", error);
     return res.status(500).json({ message: "Internal server error." });
   }
 };
 
 export const updatePushToken = async (req, res) => {
   try {
-    const { clerkId, pushToken } = req.body;
+    const { pushToken } = req.body;
 
-    if (!clerkId)
-      return res.status(400).json({ message: "Clerk id is required." });
-
-    const user = await User.findOneAndUpdate(
-      { clerkId },
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
       { pushToken: pushToken || null },
       { new: true },
     );
-
-    if (!user) return res.status(404).json({ message: "User not found." });
 
     return res
       .status(200)
@@ -80,22 +70,19 @@ export const updatePushToken = async (req, res) => {
 
 export const updatePaymentDetails = async (req, res) => {
   try {
-    const { clerkId } = req.params;
     const { iban, bankAccountHolder } = req.body;
 
     const sanitizedIban = iban ? iban.replace(/\s+/g, "").toUpperCase() : "";
 
-    const updatedUser = await User.findOneAndUpdate(
-      { clerkId },
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
       {
         iban: sanitizedIban,
         bankAccountHolder: bankAccountHolder?.trim() || "",
       },
       { new: true },
     );
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
+
     return res.json(updatedUser);
   } catch (error) {
     console.error("Error updating payment details:", error);
@@ -104,17 +91,5 @@ export const updatePaymentDetails = async (req, res) => {
 };
 
 export const getUserProfile = async (req, res) => {
-  try {
-    const { clerkId } = req.params;
-
-    const user = await User.findOne({ clerkId });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    return res.status(200).json(user);
-  } catch (error) {
-    console.error("Error fetching user profile:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
+  return res.status(200).json(req.user);
 };

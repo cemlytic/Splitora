@@ -9,7 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useUser } from "@clerk/expo";
+import { useCurrentUser } from "@/context/UserContext";
 import { Sparkles, FolderPlus } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import { groupService } from "@/services/groupService";
@@ -26,7 +26,7 @@ const QUICK_SUGGESTIONS = [
 
 export default function CreateGroupScreen() {
   const router = useRouter();
-  const { user } = useUser();
+  const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [name, setName] = useState("");
@@ -45,7 +45,7 @@ export default function CreateGroupScreen() {
       return;
     }
 
-    if (!user?.id) {
+    if (!currentUser) {
       showAlert({
         title: "Session Error",
         message: "User profile not found. Please log in again.",
@@ -58,7 +58,6 @@ export default function CreateGroupScreen() {
       setLoading(true);
       const newGroup = await groupService.createGroup({
         name: trimmedName,
-        clerkId: user.id,
       });
       hapticFeedback.success();
       router.replace(`/group/${newGroup._id}`);

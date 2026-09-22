@@ -12,8 +12,10 @@ import {
 import { tokenCache } from "@/utils/tokenCache";
 import "../global.css";
 import { AlertProvider } from "@/context/AlertContext";
+import { UserProvider } from "@/context/UserContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useNotificationObserver } from "@/hooks/useNotificationObserver";
+import { setAuthTokenGetter } from "@/services/api";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,13 +26,17 @@ if (!publishableKey) {
 }
 
 function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
   const segments = useSegments() as string[];
   const router = useRouter();
 
   usePushNotifications();
 
   useNotificationObserver();
+
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+  }, [getToken]);
 
   useEffect(() => {
     if (!isLoaded || !fontsLoaded) return;
@@ -49,9 +55,11 @@ function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
   }
 
   return (
-    <AlertProvider>
-      <Slot />
-    </AlertProvider>
+    <UserProvider>
+      <AlertProvider>
+        <Slot />
+      </AlertProvider>
+    </UserProvider>
   );
 }
 

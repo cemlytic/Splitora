@@ -9,7 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useUser } from "@clerk/expo";
+import { useCurrentUser } from "@/context/UserContext";
 import * as Clipboard from "expo-clipboard";
 import { KeyRound, ClipboardPaste, ArrowRight } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
@@ -20,7 +20,7 @@ import { hapticFeedback } from "@/utils/haptics";
 
 export default function JoinGroupScreen() {
   const router = useRouter();
-  const { user } = useUser();
+  const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [inviteCode, setInviteCode] = useState("");
@@ -51,7 +51,7 @@ export default function JoinGroupScreen() {
       return;
     }
 
-    if (!user?.id) {
+    if (!currentUser) {
       showAlert({
         title: "Session Error",
         message: "User session not found. Please log in again.",
@@ -64,7 +64,6 @@ export default function JoinGroupScreen() {
       setLoading(true);
       const joinedGroup = await groupService.joinGroup({
         inviteCode: cleanCode,
-        clerkId: user.id,
       });
       hapticFeedback.success();
       router.replace(`/group/${joinedGroup._id}`);

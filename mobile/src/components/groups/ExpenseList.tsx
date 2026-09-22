@@ -40,7 +40,7 @@ export default function ExpenseList({
   return (
     <View className="mt-5 gap-3">
       {expenses.map((expense) => {
-        const isPayer = expense.paidBy?.clerkId === currentUserId;
+        const isPayer = expense.paidBy?._id === currentUserId;
 
         return (
           <TouchableOpacity

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useUser } from "@clerk/expo";
+import { useCurrentUser } from "@/context/UserContext";
 import {
   Receipt,
   UtensilsCrossed,
@@ -42,7 +42,7 @@ const CATEGORIES = [
 export default function CreateExpenseScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
   const router = useRouter();
-  const { user } = useUser();
+  const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [title, setTitle] = useState("");
@@ -57,9 +57,9 @@ export default function CreateExpenseScreen() {
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!groupId || !user?.id) return;
+    if (!groupId || !currentUser) return;
     groupService
-      .getUserGroups(user.id)
+      .getUserGroups()
       .then((groups) => {
         const current = groups.find((g) => g._id === groupId);
         if (current) {
@@ -72,7 +72,7 @@ export default function CreateExpenseScreen() {
       })
       .catch((err) => console.error("Error fetching group:", err))
       .finally(() => setFetchingGroup(false));
-  }, [groupId, user?.id]);
+  }, [groupId, currentUser]);
 
   const toggleMember = (memberId: string) => {
     hapticFeedback.light();
@@ -133,7 +133,7 @@ export default function CreateExpenseScreen() {
       return;
     }
 
-    if (!user?.id || !groupId) {
+    if (!currentUser || !groupId) {
       showAlert({
         title: "Session Error",
         message: "Group reference or user profile missing. Please try again.",
@@ -144,9 +144,7 @@ export default function CreateExpenseScreen() {
 
     try {
       setLoading(true);
-      await expenseService.createExpense({
-        groupId,
-        clerkId: user.id,
+      await expenseService.createExpense(groupId, {
         title: trimmedTitle,
         amount: parsedAmount,
         category: selectedCategory,
@@ -383,7 +381,7 @@ export default function CreateExpenseScreen() {
                 {(group?.members as any[])?.map((member) => {
                   const mId = typeof member === "string" ? member : member._id;
                   const isSelected = selectedMemberIds.includes(mId);
-                  const isSelf = member?.clerkId === user?.id;
+                  const isSelf = member?._id === currentUser?._id;
                   const memberName = member?.name || "Member";
                   const avatarUrl = member?.avatarUrl;
 

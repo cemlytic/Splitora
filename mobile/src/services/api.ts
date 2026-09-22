@@ -11,3 +11,19 @@ export const api = axios.create({
   },
   timeout: 10000,
 });
+
+let tokenGetter: (() => Promise<string | null>) | null = null;
+
+export const setAuthTokenGetter = (fn: () => Promise<string | null>) => {
+  tokenGetter = fn;
+};
+
+api.interceptors.request.use(async (config) => {
+  if (tokenGetter) {
+    const token = await tokenGetter();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});

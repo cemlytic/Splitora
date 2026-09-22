@@ -1,6 +1,5 @@
 export interface GroupMember {
   _id: string;
-  clerkId: string;
   name: string;
   email: string;
   avatarUrl?: string;
@@ -18,12 +17,10 @@ export interface Group {
 
 export interface CreateGroupPayload {
   name: string;
-  clerkId: string;
 }
 
 export interface JoinGroupPayload {
   inviteCode: string;
-  clerkId: string;
 }
 
 export interface ExpenseSplit {
@@ -62,8 +59,6 @@ export interface GroupSummary {
 }
 
 export interface CreateExpensePayload {
-  groupId: string;
-  clerkId: string;
   title: string;
   amount: number | string;
   category?: string;
@@ -72,14 +67,11 @@ export interface CreateExpensePayload {
 }
 
 export interface SettleUpPayload {
-  groupId: string;
-  payerClerkId: string;
-  receiverClerkId: string;
+  receiverId: string;
 }
 
 export interface UpdateExpensePayload {
   expenseId: string;
-  clerkId: string;
   title: string;
   amount: number;
   category?: string;

@@ -13,7 +13,7 @@ export default function BalanceHeroCard({
   currentUserId,
 }: BalanceHeroCardProps) {
   const myBalanceItem = summary?.balances.find(
-    (b) => b.user.clerkId === currentUserId,
+    (b) => b.user._id === currentUserId,
   );
   const myNet = myBalanceItem ? myBalanceItem.netBalance : 0;
   const isLender = myNet > 0;

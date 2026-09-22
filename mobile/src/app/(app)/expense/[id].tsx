@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useUser } from "@clerk/expo";
+import { useCurrentUser } from "@/context/UserContext";
 import {
   Trash2,
   CheckCircle2,
@@ -34,7 +34,7 @@ import { useAppAlert } from "@/context/AlertContext";
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useUser();
+  const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [expense, setExpense] = useState<Expense | null>(null);
@@ -64,10 +64,10 @@ export default function ExpenseDetailScreen() {
     }, [fetchExpense]),
   );
 
-  const isPayer = expense?.paidBy?.clerkId === user?.id;
+  const isPayer = expense?.paidBy?._id === currentUser?._id;
 
   const hasSettledPayments = expense?.splits.some(
-    (split) => split.isSettled && split.user?.clerkId !== user?.id,
+    (split) => split.isSettled && split.user?._id !== currentUser?._id,
   );
 
   const handleEdit = () => {
@@ -92,7 +92,7 @@ export default function ExpenseDetailScreen() {
   };
 
   const handleDelete = () => {
-    if (!expense || !user?.id) return;
+    if (!expense || !currentUser) return;
 
     hapticFeedback.warning();
     showAlert({
@@ -108,7 +108,7 @@ export default function ExpenseDetailScreen() {
           onPress: async () => {
             try {
               setDeleting(true);
-              await expenseService.deleteExpense(expense._id, user.id);
+              await expenseService.deleteExpense(expense._id);
               hapticFeedback.success();
               router.back();
             } catch (error: any) {
@@ -293,7 +293,7 @@ export default function ExpenseDetailScreen() {
               <View className="gap-2.5">
                 {expense.splits.map((split, index) => {
                   const member = split.user;
-                  const isSelf = member?.clerkId === user?.id;
+                  const isSelf = member?._id === currentUser?._id;
 
                   return (
                     <View
