@@ -66,7 +66,7 @@ export const joinGroup = async (req, res) => {
       (memberId) => memberId.toString() === user._id.toString(),
     );
 
-    if (group.members.includes(user._id)) {
+    if (isAlreadyMember) {
       return res
         .status(400)
         .json({ error: "You are already a member of this group" });
@@ -204,8 +204,7 @@ export const deleteGroup = async (req, res) => {
 
     const creatorId = group.createdBy?.toString();
     const isOwner =
-      creatorId === user._id.toString() ||
-      creatorId === user.clerkId;
+      creatorId === user._id.toString() || creatorId === user.clerkId;
 
     if (!isOwner) {
       return res
