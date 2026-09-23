@@ -1,6 +1,9 @@
 import { Group } from "../db/models/Group.js";
 import { User } from "../db/models/User.js";
 import { Expense } from "../db/models/Expense.js";
+import { Settlement } from "../db/models/Settlement.js";
+import { computeGroupBalances } from "../utils/balances.js";
+import { toDollars } from "../utils/money.js";
 import crypto from "crypto";
 
 const generateInviteCode = () => {
@@ -56,7 +59,7 @@ export const joinGroup = async (req, res) => {
         .json({ error: "You are already member of this group." });
 
     group.members.push(req.user._id);
-    await Group.save();
+    await group.save();
 
     res.status(200).json(group);
   } catch (error) {
@@ -83,26 +86,19 @@ export const leaveGroup = async (req, res) => {
     const group = req.group;
     const userId = req.user._id;
 
-    const expenses = await Expense.find({ groupId: group._id });
-    let netBalance = 0;
+    const [members, expenses, settlements] = await Promise.all([
+      User.find({ _id: { $in: group.members } }),
+      Expense.find({ groupId: group._id }),
+      Settlement.find({ groupId: group._id }),
+    ]);
 
-    expenses.forEach((expense) => {
-      const isPayer = expense.paidBy.toString() === userId.toString();
+    const balances = computeGroupBalances(members, expenses, settlements);
+    const netCents = balances[userId.toString()]?.netCents || 0;
 
-      expense.splits.forEach((split) => {
-        const isSplitUser = split.user.toString() === userId.toString();
-
-        if (!split.isSettled) {
-          if (isSplitUser && !isPayer) netBalance -= split.amount;
-          if (isPayer && !isSplitUser) netBalance += split.amount;
-        }
-      });
-    });
-
-    if (Math.abs(netBalance) >= 0.01) {
-      const formatted = Math.abs(netBalance).toFixed(2);
+    if (Math.abs(netCents) >= 1) {
+      const formatted = toDollars(Math.abs(netCents)).toFixed(2);
       const reason =
-        netBalance < 0
+        netCents < 0
           ? `You have outstanding debts ($${formatted}). Please settle up before leaving.`
           : `You have pending credits ($${formatted}). Please collect your balance before leaving.`;
       return res.status(400).json({ message: reason });
@@ -147,14 +143,18 @@ export const deleteGroup = async (req, res) => {
         .status(403)
         .json({ message: "Only the group creator can delete this space." });
 
-    const expenses = await Expense.find({ groupId: group._id });
-    const hasUnsettledSplits = expenses.some((exp) =>
-      exp.splits.some(
-        (s) => !s.isSettled && s.user.toString() !== userId.toString(),
-      ),
+    const [members, expenses, settlements] = await Promise.all([
+      User.find({ _id: { $in: group.members } }),
+      Expense.find({ groupId: group._id }),
+      Settlement.find({ groupId: group._id }),
+    ]);
+
+    const balances = computeGroupBalances(members, expenses, settlements);
+    const hasOutstandingBalances = Object.values(balances).some(
+      (b) => Math.abs(b.netCents) >= 1,
     );
 
-    if (hasUnsettledSplits) {
+    if (hasOutstandingBalances) {
       return res.status(400).json({
         message:
           "Cannot delete group with unsettled debts. All balances must be settled first.",
@@ -162,6 +162,7 @@ export const deleteGroup = async (req, res) => {
     }
 
     await Expense.deleteMany({ groupId: group._id });
+    await Settlement.deleteMany({ groupId: group._id });
     await Group.findByIdAndDelete(group._id);
 
     return res.status(200).json({ message: "Group deleted successfully" });

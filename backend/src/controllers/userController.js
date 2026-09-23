@@ -1,6 +1,7 @@
 import { User } from "../db/models/User.js";
 import { Group } from "../db/models/Group.js";
 import { Expense } from "../db/models/Expense.js";
+import { Settlement } from "../db/models/Settlement.js";
 
 export const syncUser = async (req, res) => {
   try {
@@ -35,6 +36,7 @@ export const deleteUserAccount = async (req, res) => {
 
     if (emptyGroups.length > 0) {
       await Expense.deleteMany({ groupId: { $in: emptyGroupIds } });
+      await Settlement.deleteMany({ groupId: { $in: emptyGroupIds } });
       await Group.deleteMany({ _id: { $in: emptyGroupIds } });
     }
 

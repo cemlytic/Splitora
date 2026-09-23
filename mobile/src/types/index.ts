@@ -26,7 +26,6 @@ export interface JoinGroupPayload {
 export interface ExpenseSplit {
   user: GroupMember;
   amount: number;
-  isSettled: boolean;
 }
 
 export interface Expense {
@@ -39,6 +38,7 @@ export interface Expense {
   splits: ExpenseSplit[];
   receiptUrl?: string | null;
   createdAt: string;
+  locked?: boolean;
 }
 
 export interface BalanceItem {
@@ -68,6 +68,7 @@ export interface CreateExpensePayload {
 
 export interface SettleUpPayload {
   receiverId: string;
+  amount: number;
 }
 
 export interface UpdateExpensePayload {

@@ -1,20 +1,12 @@
 import mongoose from "mongoose";
 
-const splitSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
+const splitSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    amountCents: { type: Number, required: true },
   },
-  amount: {
-    type: Number,
-    required: true,
-  },
-  isSettled: {
-    type: Boolean,
-    default: false,
-  },
-});
+  { _id: false },
+);
 
 const expenseSchema = new mongoose.Schema(
   {
@@ -24,30 +16,17 @@ const expenseSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    title: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    amount: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    category: {
-      type: String,
-      default: "other",
-    },
+    title: { type: String, required: true, trim: true },
+    amountCents: { type: Number, required: true },
+    category: { type: String, default: "general" },
     paidBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     splits: [splitSchema],
-    receiptUrl: {
-      type: String,
-      default: null,
-    },
+    receiptUrl: { type: String, default: null },
   },
   { timestamps: true },
 );

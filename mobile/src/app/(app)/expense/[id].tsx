@@ -14,8 +14,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCurrentUser } from "@/context/UserContext";
 import {
   Trash2,
-  CheckCircle2,
-  Clock,
   Receipt,
   UserCheck,
   Edit3,
@@ -65,20 +63,17 @@ export default function ExpenseDetailScreen() {
   );
 
   const isPayer = expense?.paidBy?._id === currentUser?._id;
-
-  const hasSettledPayments = expense?.splits.some(
-    (split) => split.isSettled && split.user?._id !== currentUser?._id,
-  );
+  const isLocked = Boolean(expense?.locked);
 
   const handleEdit = () => {
     if (!expense) return;
 
-    if (hasSettledPayments) {
+    if (isLocked) {
       hapticFeedback.warning();
       showAlert({
         title: "Cannot Edit Expense",
         message:
-          "This expense cannot be edited because one or more members have already settled their payment.",
+          "This expense cannot be edited because settlements have already been recorded in this group after it was created.",
         type: "warning",
       });
       return;
@@ -332,11 +327,7 @@ export default function ExpenseDetailScreen() {
                             style={{ fontFamily: "SpaceGrotesk_400Regular" }}
                             className="text-[11px] text-muted"
                           >
-                            {split.isSettled
-                              ? isSelf
-                                ? "Your share (Covered)"
-                                : "Settled up"
-                              : "Pending payment"}
+                            {isSelf ? "Your share" : "Their share"}
                           </Text>
                         </View>
                       </View>
@@ -348,24 +339,12 @@ export default function ExpenseDetailScreen() {
                         >
                           {formatCurrency(split.amount)}
                         </Text>
-
-                        <View
-                          className={`mt-1 flex-row items-center gap-1 rounded-md px-2 py-0.5 ${
-                            split.isSettled ? "bg-teal/10" : "bg-coral/10"
-                          }`}
-                        >
-                          {split.isSettled ? (
-                            <CheckCircle2 size={10} color="#0E7C66" />
-                          ) : (
-                            <Clock size={10} color="#FF6B4A" />
-                          )}
+                        <View className="mt-1 flex-row items-center gap-1 rounded-md bg-ink/5 px-2 py-0.5">
                           <Text
                             style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                            className={`text-[10px] tracking-wide ${
-                              split.isSettled ? "text-teal" : "text-coral"
-                            }`}
+                            className="text-[10px] tracking-wide text-muted"
                           >
-                            {split.isSettled ? "SETTLED" : "OWES"}
+                            SHARE
                           </Text>
                         </View>
                       </View>
@@ -382,20 +361,15 @@ export default function ExpenseDetailScreen() {
                   disabled={deleting}
                   activeOpacity={0.75}
                   className={`h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border active:scale-[0.99] ${
-                    hasSettledPayments
+                    isLocked
                       ? "border-ink/10 bg-ink/5 opacity-50"
                       : "border-ink/15 bg-cream"
                   }`}
                 >
-                  <Edit3
-                    size={16}
-                    color={hasSettledPayments ? "#8A8680" : "#1B1B1F"}
-                  />
+                  <Edit3 size={16} color={isLocked ? "#8A8680" : "#1B1B1F"} />
                   <Text
                     style={{ fontFamily: "SpaceGrotesk_700Bold" }}
-                    className={`text-[14px] ${
-                      hasSettledPayments ? "text-muted" : "text-ink"
-                    }`}
+                    className={`text-[14px] ${isLocked ? "text-muted" : "text-ink"}`}
                   >
                     Edit
                   </Text>

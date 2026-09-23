@@ -137,7 +137,11 @@ export default function GroupDetailScreen() {
 
     try {
       setSettling(true);
-      await expenseService.settleUp(id, payModalData.receiverId);
+      await expenseService.settleUp(
+        id,
+        payModalData.receiverId,
+        payModalData.amount,
+      );
 
       hapticFeedback.success();
       setPayModalData((prev) => ({ ...prev, visible: false }));
@@ -307,7 +311,10 @@ export default function GroupDetailScreen() {
             />
 
             {activeTab === "expenses" ? (
-              <ExpenseList expenses={expenses} currentUserId={currentUser?._id} />
+              <ExpenseList
+                expenses={expenses}
+                currentUserId={currentUser?._id}
+              />
             ) : (
               <DebtList
                 summary={summary}

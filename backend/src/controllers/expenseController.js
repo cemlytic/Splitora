@@ -1,7 +1,23 @@
 import { Expense } from "../db/models/Expense.js";
 import { Group } from "../db/models/Group.js";
+import { Settlement } from "../db/models/Settlement.js";
 import { User } from "../db/models/User.js";
 import { sendPushNotifications } from "../utils/pushNotifications.js";
+import { toCents, toDollars, splitEvenly } from "../utils/money.js";
+import { computeGroupBalances, simplifyDebts } from "../utils/balances.js";
+
+const serializeExpense = (expenseDoc, extra = {}) => {
+  const obj = expenseDoc.toObject ? expenseDoc.toObject() : expenseDoc;
+  return {
+    ...obj,
+    amount: toDollars(obj.amountCents),
+    splits: obj.splits.map((s) => ({
+      ...s,
+      amount: toDollars(s.amountCents),
+    })),
+    ...extra,
+  };
+};
 
 const findExpenseAndCheckMembership = async (expenseId, userId) => {
   const expense = await Expense.findById(expenseId);
@@ -13,21 +29,29 @@ const findExpenseAndCheckMembership = async (expenseId, userId) => {
   return { expense, group };
 };
 
+const isExpenseLocked = async (expense) => {
+  const laterSettlement = await Settlement.exists({
+    groupId: expense.groupId,
+    createdAt: { $gt: expense.createdAt },
+  });
+  return Boolean(laterSettlement);
+};
+
 export const createExpense = async (req, res) => {
   try {
     const { title, amount, category, splitUserIds, receiptUrl } = req.body;
     const group = req.group;
     const user = req.user;
 
-    if (!title || !amount) {
+    if (!title || amount === undefined || amount === null) {
       return res.status(400).json({
         success: false,
-        message: "Missing parameters: title and amount are mandatory",
+        message: "Missing required parameters: title and amount are mandatory.",
       });
     }
 
-    const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount) || numericAmount <= 0) {
+    const amountCents = toCents(amount);
+    if (!amountCents || amountCents <= 0) {
       return res.status(400).json({
         success: false,
         message:
@@ -36,7 +60,6 @@ export const createExpense = async (req, res) => {
     }
 
     const allGroupMemberIds = group.members.map((m) => m.toString());
-
     let targetMemberIds = allGroupMemberIds;
     if (Array.isArray(splitUserIds) && splitUserIds.length > 0) {
       targetMemberIds = allGroupMemberIds.filter((id) =>
@@ -50,20 +73,16 @@ export const createExpense = async (req, res) => {
       }
     }
 
-    const memberCount = targetMemberIds.length;
-    const splitAmount = Number((numericAmount / memberCount).toFixed(2));
-    const payerIdStr = user._id.toString();
-
-    const splits = targetMemberIds.map((memberIdStr) => ({
+    const centsPerPerson = splitEvenly(amountCents, targetMemberIds.length);
+    const splits = targetMemberIds.map((memberIdStr, index) => ({
       user: memberIdStr,
-      amount: splitAmount,
-      isSettled: memberIdStr === payerIdStr,
+      amountCents: centsPerPerson[index],
     }));
 
     const newExpense = await Expense.create({
       groupId: group._id,
       title: title.trim(),
-      amount: numericAmount,
+      amountCents,
       category: category || "general",
       paidBy: user._id,
       splits,
@@ -71,18 +90,18 @@ export const createExpense = async (req, res) => {
     });
 
     const populatedExpense = await Expense.findById(newExpense._id)
-      .populate("paidBy", "name emai avatarUrl")
-      .populate("splits.user", "name emai avatarUrl");
+      .populate("paidBy", "name email avatarUrl")
+      .populate("splits.user", "name email avatarUrl");
 
+    const payerIdStr = user._id.toString();
     const debtorUserIds = targetMemberIds.filter((id) => id !== payerIdStr);
 
     if (debtorUserIds.length > 0) {
-      const { User } = await import("../db/models/User.js");
       User.find({
         _id: { $in: debtorUserIds },
         pushToken: { $exists: true, $ne: null },
       })
-        .select("_is name pushToken")
+        .select("_id name pushToken")
         .then(async (recipients) => {
           const validRecipients = recipients.filter(
             (r) => r.pushToken && r.pushToken.startsWith("ExponentPushToken"),
@@ -93,7 +112,7 @@ export const createExpense = async (req, res) => {
             to: recipient.pushToken,
             sound: "default",
             title: `${group.name}: New Expense Added`,
-            body: `${user.name || "A member"} paid for "${title.trim()}". Your share: $${splitAmount}`,
+            body: `${user.name || "A member"} paid for "${title.trim()}".`,
             data: {
               type: "EXPENSE_CREATED",
               groupId: group._id.toString(),
@@ -105,7 +124,7 @@ export const createExpense = async (req, res) => {
         })
         .catch((error) =>
           console.error(
-            "[PushService] Notificaiton dispatch failure: ",
+            "[PushService] Notification dispatch failure:",
             error.message,
           ),
         );
@@ -113,8 +132,8 @@ export const createExpense = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Expense created successfully",
-      data: populatedExpense,
+      message: "Expense recorded successfully.",
+      data: serializeExpense(populatedExpense),
     });
   } catch (error) {
     console.error("[ExpenseController:createExpense] Internal error:", error);
@@ -129,11 +148,11 @@ export const createExpense = async (req, res) => {
 export const getGroupExpenses = async (req, res) => {
   try {
     const expenses = await Expense.find({ groupId: req.group._id })
-      .populate("paidBy", "name email clerkId avatarUrl")
-      .populate("splits.user", "name email clerkId avatarUrl")
+      .populate("paidBy", "name email avatarUrl")
+      .populate("splits.user", "name email avatarUrl")
       .sort({ createdAt: -1 });
 
-    res.status(200).json(expenses);
+    res.status(200).json(expenses.map((e) => serializeExpense(e)));
   } catch (error) {
     console.error("Error fetching group expenses:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -142,91 +161,46 @@ export const getGroupExpenses = async (req, res) => {
 
 export const getGroupBalanceSummary = async (req, res) => {
   try {
-    const group = await Group.findById(req.group._id).populate(
-      "members",
-      "name email avatarUrl iban bankAccountHolder",
+    const group = req.group;
+
+    const [members, expenses, settlements] = await Promise.all([
+      User.find({ _id: { $in: group.members } }).select(
+        "name email avatarUrl iban bankAccountHolder",
+      ),
+      Expense.find({ groupId: group._id })
+        .populate("paidBy", "name email avatarUrl")
+        .populate("splits.user", "name email avatarUrl"),
+      Settlement.find({ groupId: group._id }),
+    ]);
+
+    const expensesInCents = expenses.map((e) => ({
+      paidBy: e.paidBy,
+      splits: e.splits,
+    }));
+
+    const balances = computeGroupBalances(
+      members,
+      expensesInCents,
+      settlements,
     );
+    const debts = simplifyDebts(balances);
 
-    const expenses = await Expense.find({ groupId: req.group._id })
-      .populate("paidBy", "name email  avatarUrl iban bankAccountHolder")
-      .populate("splits.user", "name email avatarUrl iban bankAccountHolder");
-
-    const totalGroupExpense = expenses.reduce(
-      (sum, exp) => sum + exp.amount,
+    const totalExpenseCents = expenses.reduce(
+      (sum, e) => sum + e.amountCents,
       0,
     );
 
-    const balances = {};
-    group.members.forEach((member) => {
-      balances[member._id.toString()] = { user: member, netBalance: 0 };
-    });
-
-    expenses.forEach((expense) => {
-      if (!expense.paidBy) return;
-      const payerId = expense.paidBy._id.toString();
-      if (!balances[payerId])
-        balances[payerId] = { user: expense.paidBy, netBalance: 0 };
-
-      expense.splits.forEach((split) => {
-        if (!split.user) return;
-        const splitUserId = split.user._id.toString();
-        if (!balances[splitUserId])
-          balances[splitUserId] = { user: split.user, netBalance: 0 };
-
-        if (!split.isSettled && splitUserId !== payerId) {
-          balances[splitUserId].netBalance -= split.amount;
-          balances[payerId].netBalance += split.amount;
-        }
-      });
-    });
-
-    const debtors = [];
-    const creditors = [];
-
-    Object.values(balances).forEach((item) => {
-      const balance = Number(item.netBalance.toFixed(2));
-      if (balance < -0.01)
-        debtors.push({ user: item.user, netBalance: balance });
-      else if (balance > 0.01)
-        creditors.push({ user: item.user, netBalance: balance });
-    });
-
-    const debts = [];
-    let debtIndex = 0;
-    let creditIndex = 0;
-    const workingDebtors = debtors.map((d) => ({ ...d }));
-    const workingCreditors = creditors.map((c) => ({ ...c }));
-
-    while (
-      debtIndex < workingDebtors.length &&
-      creditIndex < workingCreditors.length
-    ) {
-      const debtor = workingDebtors[debtIndex];
-      const creditor = workingCreditors[creditIndex];
-      const debtAmount = Math.min(
-        Math.abs(debtor.netBalance),
-        creditor.netBalance,
-      );
-      const roundedAmount = Number(debtAmount.toFixed(2));
-
-      if (roundedAmount > 0) {
-        debts.push({
-          from: debtor.user,
-          to: creditor.user,
-          amount: roundedAmount,
-        });
-      }
-
-      debtor.netBalance += debtAmount;
-      creditor.netBalance -= debtAmount;
-      if (Math.abs(debtor.netBalance) < 0.01) debtIndex++;
-      if (creditor.netBalance < 0.01) creditIndex++;
-    }
-
     return res.status(200).json({
-      totalExpense: Number(totalGroupExpense.toFixed(2)),
-      balances: Object.values(balances),
-      debts,
+      totalExpense: toDollars(totalExpenseCents),
+      balances: Object.values(balances).map((b) => ({
+        user: b.user,
+        netBalance: toDollars(b.netCents),
+      })),
+      debts: debts.map((d) => ({
+        from: d.from,
+        to: d.to,
+        amount: toDollars(d.amountCents),
+      })),
     });
   } catch (error) {
     console.error("Error calculating summary:", error);
@@ -236,12 +210,21 @@ export const getGroupBalanceSummary = async (req, res) => {
 
 export const settleUp = async (req, res) => {
   try {
-    const { receiverId } = req.body;
+    const { receiverId, amount } = req.body;
     const group = req.group;
     const payer = req.user;
 
-    if (!receiverId)
-      return res.status(400).json({ message: "receiverId is required" });
+    if (!receiverId || amount === undefined || amount === null) {
+      return res
+        .status(400)
+        .json({ message: "receiverId and amount are required" });
+    }
+
+    if (receiverId === payer._id.toString()) {
+      return res
+        .status(400)
+        .json({ message: "You cannot settle up with yourself" });
+    }
 
     const isReceiverMember = group.members.some(
       (m) => m.toString() === receiverId,
@@ -249,34 +232,61 @@ export const settleUp = async (req, res) => {
     if (!isReceiverMember) {
       return res
         .status(400)
-        .json({ message: "Receiver is not a member of this group." });
+        .json({ message: "Receiver is not a member of this group" });
     }
 
-    const result = await Expense.updateMany(
-      {
-        groupId: group._id,
-        paidBy: receiverId,
-        "splits.user": payer._id,
-        "splits.isSettled": false,
-      },
-      { $set: { "splits.$[elem].isSettled": true } },
-      { arrayFilters: [{ "elem.user": payer._id }] },
+    const amountCents = toCents(amount);
+    if (!amountCents || amountCents <= 0) {
+      return res.status(400).json({ message: "Invalid settlement amount" });
+    }
+
+    const [members, expenses, settlements] = await Promise.all([
+      User.find({ _id: { $in: group.members } }),
+      Expense.find({ groupId: group._id }),
+      Settlement.find({ groupId: group._id }),
+    ]);
+
+    const balances = computeGroupBalances(members, expenses, settlements);
+    const payerBalance = balances[payer._id.toString()];
+    const receiverBalance = balances[receiverId];
+
+    if (!payerBalance || payerBalance.netCents >= -1) {
+      return res
+        .status(400)
+        .json({ message: "You have no outstanding debt in this group" });
+    }
+    if (!receiverBalance || receiverBalance.netCents <= 1) {
+      return res
+        .status(400)
+        .json({ message: "Receiver is not owed money in this group" });
+    }
+
+    const maxPossibleCents = Math.min(
+      -payerBalance.netCents,
+      receiverBalance.netCents,
     );
+    if (amountCents > maxPossibleCents) {
+      return res.status(400).json({
+        message: `Amount exceeds what you can settle with this member ($${toDollars(maxPossibleCents)} max).`,
+      });
+    }
 
-    const { User } = await import("../db/models/User.js");
+    await Settlement.create({
+      groupId: group._id,
+      from: payer._id,
+      to: receiverId,
+      amountCents,
+    });
+
     const receiver = await User.findById(receiverId);
-
     if (receiver?.pushToken) {
       sendPushNotifications([
         {
           to: receiver.pushToken,
           sound: "default",
           title: "Payment Settled",
-          body: `${payer.name || "A member"} settled their debt in "${group.name}".`,
-          data: {
-            type: "SETTLEMENT_CONFIRMED",
-            groupId: group._id.toString(),
-          },
+          body: `${payer.name || "A member"} paid you $${toDollars(amountCents)} in "${group.name}".`,
+          data: { type: "SETTLEMENT_CONFIRMED", groupId: group._id.toString() },
         },
       ]).catch((err) =>
         console.error(
@@ -286,13 +296,10 @@ export const settleUp = async (req, res) => {
       );
     }
 
-    res.status(200).json({
-      message: "Debts settled successfully",
-      modifiedCount: result.modifiedCount,
-    });
+    return res.status(200).json({ message: "Payment recorded successfully" });
   } catch (error) {
     console.error("Error settling up", error);
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -308,7 +315,9 @@ export const getExpenseById = async (req, res) => {
       .populate("paidBy", "name email avatarUrl")
       .populate("splits.user", "name email avatarUrl");
 
-    res.status(200).json(expense);
+    const locked = await isExpenseLocked(expense);
+
+    res.status(200).json(serializeExpense(expense, { locked }));
   } catch (error) {
     console.error("Error fetching expense detail:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -321,12 +330,12 @@ export const updateExpense = async (req, res) => {
     const { title, amount, category, splitUserIds, receiptUrl } = req.body;
     const user = req.user;
 
-    if (!title || !amount) {
+    if (!title || amount === undefined || amount === null) {
       return res.status(400).json({ message: "Missing fields" });
     }
 
-    const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount) || numericAmount <= 0) {
+    const amountCents = toCents(amount);
+    if (!amountCents || amountCents <= 0) {
       return res
         .status(400)
         .json({ message: "Amount must be a positive number" });
@@ -342,14 +351,10 @@ export const updateExpense = async (req, res) => {
       return res.status(403).json({ message: "You are not authorized." });
     }
 
-    const hasSettledPayments = expense.splits.some(
-      (split) =>
-        split.isSettled && split.user.toString() !== user._id.toString(),
-    );
-    if (hasSettledPayments) {
+    if (await isExpenseLocked(expense)) {
       return res.status(400).json({
         message:
-          "Cannot edit an expense with settled settlements. Settle payments exist.",
+          "Cannot edit this expense because settlements have already been recorded after it.",
       });
     }
 
@@ -366,17 +371,14 @@ export const updateExpense = async (req, res) => {
       }
     }
 
-    const memberCount = targetMemberIds.length;
-    const splitAmount = Number((numericAmount / memberCount).toFixed(2));
-    const payerIdStr = user._id.toString();
+    const centsPerPerson = splitEvenly(amountCents, targetMemberIds.length);
 
     expense.title = title.trim();
-    expense.amount = numericAmount;
+    expense.amountCents = amountCents;
     expense.category = category || expense.category;
-    expense.splits = targetMemberIds.map((memberIdStr) => ({
+    expense.splits = targetMemberIds.map((memberIdStr, index) => ({
       user: memberIdStr,
-      amount: splitAmount,
-      isSettled: memberIdStr === payerIdStr,
+      amountCents: centsPerPerson[index],
     }));
     if (receiptUrl !== undefined) expense.receiptUrl = receiptUrl;
 
@@ -386,7 +388,7 @@ export const updateExpense = async (req, res) => {
       .populate("paidBy", "name email avatarUrl")
       .populate("splits.user", "name email avatarUrl");
 
-    return res.status(200).json(updatedExpense);
+    return res.status(200).json(serializeExpense(updatedExpense));
   } catch (error) {
     console.error("Error updating expense: ", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -410,13 +412,10 @@ export const deleteExpense = async (req, res) => {
         .json({ message: "You are not authorized to delete this expense" });
     }
 
-    const hasSettledSplits = expense.splits.some(
-      (split) =>
-        split.isSettled && split.user.toString() !== user._id.toString(),
-    );
-    if (hasSettledSplits) {
+    if (await isExpenseLocked(expense)) {
       return res.status(400).json({
-        message: "Cannot delete an expense that already has settled payments",
+        message:
+          "Cannot delete this expense because settlements have already been recorded after it.",
       });
     }
 

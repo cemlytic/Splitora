@@ -31,9 +31,11 @@ export const expenseService = {
   settleUp: async (
     groupId: string,
     receiverId: string,
+    amount: number,
   ): Promise<{ message: string }> => {
     const res = await api.post(`/expenses/group/${groupId}/settle-up`, {
       receiverId,
+      amount,
     });
     return res.data;
   },
