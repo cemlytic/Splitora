@@ -9,7 +9,7 @@ import {
   Share,
 } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useUser } from "@clerk/expo";
+import { useCurrentUser } from "@/context/UserContext";
 import * as Clipboard from "expo-clipboard";
 import {
   Plus,
@@ -38,7 +38,7 @@ import { exportGroupToCSV } from "@/utils/exportGroupReport";
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useUser();
+  const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [activeTab, setActiveTab] = useState<GroupTabType>("expenses");
@@ -57,21 +57,21 @@ export default function GroupDetailScreen() {
     receiverIban?: string;
     accountHolder?: string;
     amount: number;
-    receiverClerkId: string;
+    receiverId: string;
   }>({
     visible: false,
     receiverName: "",
     amount: 0,
-    receiverClerkId: "",
+    receiverId: "",
   });
 
   const fetchData = useCallback(async () => {
-    if (!id || !user?.id) return;
+    if (!id || !currentUser) return;
     try {
       const [expensesData, summaryData, userGroups] = await Promise.all([
         expenseService.getExpenses(id),
         expenseService.getSummary(id),
-        groupService.getUserGroups(user.id),
+        groupService.getUserGroups(),
       ]);
       setExpenses(expensesData);
       setSummary(summaryData);
@@ -83,7 +83,7 @@ export default function GroupDetailScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id, user?.id]);
+  }, [id, currentUser]);
 
   useFocusEffect(
     useCallback(() => {
@@ -116,7 +116,7 @@ export default function GroupDetailScreen() {
   };
 
   const handleOpenPayModal = (debtInfo: {
-    receiverClerkId: string;
+    receiverId: string;
     receiverName: string;
     receiverIban?: string;
     accountHolder?: string;
@@ -128,20 +128,20 @@ export default function GroupDetailScreen() {
       receiverIban: debtInfo.receiverIban,
       accountHolder: debtInfo.accountHolder,
       amount: debtInfo.amount,
-      receiverClerkId: debtInfo.receiverClerkId,
+      receiverId: debtInfo.receiverId,
     });
   };
 
   const handleConfirmSettlement = async () => {
-    if (!user?.id || !id || !payModalData.receiverClerkId) return;
+    if (!currentUser || !id || !payModalData.receiverId) return;
 
     try {
       setSettling(true);
-      await expenseService.settleUp({
-        groupId: id,
-        payerClerkId: user.id,
-        receiverClerkId: payModalData.receiverClerkId,
-      });
+      await expenseService.settleUp(
+        id,
+        payModalData.receiverId,
+        payModalData.amount,
+      );
 
       hapticFeedback.success();
       setPayModalData((prev) => ({ ...prev, visible: false }));
@@ -242,7 +242,10 @@ export default function GroupDetailScreen() {
           <GroupDetailSkeleton />
         ) : (
           <>
-            <BalanceHeroCard summary={summary} currentUserId={user?.id} />
+            <BalanceHeroCard
+              summary={summary}
+              currentUserId={currentUser?._id}
+            />
 
             {group?.inviteCode && (
               <View className="mt-4 flex-row items-center justify-between rounded-2xl border border-ink/6 bg-cream/80 p-3.5 shadow-sm">
@@ -308,11 +311,14 @@ export default function GroupDetailScreen() {
             />
 
             {activeTab === "expenses" ? (
-              <ExpenseList expenses={expenses} currentUserId={user?.id} />
+              <ExpenseList
+                expenses={expenses}
+                currentUserId={currentUser?._id}
+              />
             ) : (
               <DebtList
                 summary={summary}
-                currentUserId={user?.id}
+                currentUserId={currentUser?._id}
                 onSettleUp={handleOpenPayModal}
               />
             )}

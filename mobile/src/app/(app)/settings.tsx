@@ -29,12 +29,14 @@ import SettingsSkeleton from "@/components/skeletons/SettingsSkeleton";
 import { useAppAlert } from "@/context/AlertContext";
 import { hapticFeedback } from "@/utils/haptics";
 import { userService } from "@/services/userService";
+import { useCurrentUser } from "@/context/UserContext";
 import { formatIban } from "@/utils/formatIban";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
+  const { currentUser, refreshUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [deleting, setDeleting] = useState(false);
@@ -50,29 +52,18 @@ export default function SettingsScreen() {
   const [isHolderFocused, setIsHolderFocused] = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
-    userService
-      .getUserProfile(user.id)
-      .then((data: any) => {
-        if (data?.iban) {
-          const formatted = formatIban(data.iban);
-          setIban(formatted);
-          setInitialIban(formatted);
-        }
-        if (data?.bankAccountHolder) {
-          setAccountHolder(data.bankAccountHolder);
-          setInitialHolder(data.bankAccountHolder);
-        }
-        if (data?.iban || data?.bankAccountHolder) {
-          setIsEditing(false);
-        } else {
-          setIsEditing(true);
-        }
-      })
-      .catch((err) => {
-        console.log("Could not fetch payment profile:", err);
-      });
-  }, [user?.id]);
+    if (!currentUser) return;
+    if (currentUser.iban) {
+      const formatted = formatIban(currentUser.iban);
+      setIban(formatted);
+      setInitialIban(formatted);
+    }
+    if (currentUser.bankAccountHolder) {
+      setAccountHolder(currentUser.bankAccountHolder);
+      setInitialHolder(currentUser.bankAccountHolder);
+    }
+    setIsEditing(!(currentUser.iban || currentUser.bankAccountHolder));
+  }, [currentUser]);
 
   const hasChanges =
     iban.trim() !== initialIban.trim() ||
@@ -87,7 +78,7 @@ export default function SettingsScreen() {
   };
 
   const handleSavePaymentInfo = async () => {
-    if (!user?.id) return;
+    if (!currentUser) return;
 
     const cleanIban = iban.replace(/\s+/g, "").trim();
     const cleanHolder = accountHolder.trim();
@@ -104,10 +95,11 @@ export default function SettingsScreen() {
 
     try {
       setSavingPayment(true);
-      await userService.updatePaymentDetails(user.id, {
+      await userService.updatePaymentDetails({
         iban: cleanIban,
         bankAccountHolder: cleanHolder,
       });
+      await refreshUser()
 
       setInitialIban(iban);
       setInitialHolder(accountHolder);
@@ -173,7 +165,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               setDeleting(true);
-              await userService.deleteAccount(user!.id);
+              await userService.deleteAccount();
               await user?.delete();
               await signOut();
               router.replace("/(auth)/login");

@@ -20,13 +20,23 @@ export const expenseService = {
     return res.data;
   },
 
-  createExpense: async (payload: CreateExpensePayload): Promise<Expense> => {
-    const res = await api.post<Expense>("/expenses", payload);
+  createExpense: async (
+    groupId: string,
+    payload: Omit<CreateExpensePayload, "groupId" | "clerkId">,
+  ): Promise<Expense> => {
+    const res = await api.post<Expense>(`/expenses/group/${groupId}`, payload);
     return res.data;
   },
 
-  settleUp: async (payload: SettleUpPayload): Promise<{ message: string }> => {
-    const res = await api.post("/expenses/settle-up", payload);
+  settleUp: async (
+    groupId: string,
+    receiverId: string,
+    amount: number,
+  ): Promise<{ message: string }> => {
+    const res = await api.post(`/expenses/group/${groupId}/settle-up`, {
+      receiverId,
+      amount,
+    });
     return res.data;
   },
 
@@ -35,19 +45,12 @@ export const expenseService = {
     return res.data;
   },
 
-  deleteExpense: async (
-    expenseId: string,
-    clerkId: string,
-  ): Promise<{ message: string }> => {
-    const res = await api.delete<{ message: string }>(
-      `/expenses/${expenseId}`,
-      {
-        data: { clerkId },
-      },
-    );
+  deleteExpense: async (expenseId: string): Promise<{ message: string }> => {
+    const res = await api.delete<{ message: string }>(`/expenses/${expenseId}`);
     return res.data;
   },
-  updateExpense: async (payload: UpdateExpensePayload) => {
+
+  updateExpense: async (payload: Omit<UpdateExpensePayload, "clerkId">) => {
     const { expenseId, ...data } = payload;
     const res = await api.put(`/expenses/${expenseId}`, data);
     return res.data;

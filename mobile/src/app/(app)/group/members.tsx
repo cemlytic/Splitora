@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useUser } from "@clerk/expo";
+import { useCurrentUser } from "@/context/UserContext";
 import {
   Users,
   ArrowDownLeft,
@@ -32,7 +32,7 @@ import TopNavigation from "@/components/common/TopNavigation";
 export default function GroupMembersScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
   const router = useRouter();
-  const { user } = useUser();
+  const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [summary, setSummary] = useState<GroupSummary | null>(null);
@@ -41,12 +41,12 @@ export default function GroupMembersScreen() {
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    if (!groupId || !user?.id) return;
+    if (!groupId || !currentUser) return;
     setLoading(true);
 
     Promise.all([
       expenseService.getSummary(groupId),
-      groupService.getUserGroups(user.id),
+      groupService.getUserGroups(),
     ])
       .then(([summaryData, userGroups]) => {
         setSummary(summaryData);
@@ -57,29 +57,25 @@ export default function GroupMembersScreen() {
         console.error("Could not fetch members details:", error),
       )
       .finally(() => setLoading(false));
-  }, [groupId, user?.id]);
+  }, [groupId, currentUser]);
 
   const memberCount = summary?.balances.length || 0;
 
-  const currentUserMongoId = summary?.balances.find(
-    (b: any) => b.user?.clerkId === user?.id,
-  )?.user?._id;
+  const currentUserMongoId = currentUser?._id;
 
   const currentUserBalance =
-    summary?.balances.find((b: any) => b.user?.clerkId === user?.id)
+    summary?.balances.find((b: any) => b.user?._id === currentUserMongoId)
       ?.netBalance || 0;
 
   const groupOwnerId =
     typeof group?.createdBy === "string"
       ? group.createdBy
-      : (group?.createdBy as any)?._id || (group?.createdBy as any)?.clerkId;
+      : (group?.createdBy as any)?._id;
 
-  const isOwner =
-    Boolean(groupOwnerId) &&
-    (groupOwnerId === user?.id || groupOwnerId === currentUserMongoId);
+  const isOwner = Boolean(groupOwnerId) && groupOwnerId === currentUserMongoId;
 
   const handleLeaveGroup = () => {
-    if (!groupId || !user?.id) return;
+    if (!groupId || !currentUser) return;
 
     if (Math.abs(currentUserBalance) >= 0.01) {
       hapticFeedback.warning();
@@ -108,7 +104,7 @@ export default function GroupMembersScreen() {
           onPress: async () => {
             try {
               setActionLoading(true);
-              await groupService.leaveGroup(groupId, user.id);
+              await groupService.leaveGroup(groupId);
               hapticFeedback.success();
               router.replace("/(app)");
             } catch (error: any) {
@@ -130,7 +126,7 @@ export default function GroupMembersScreen() {
   };
 
   const handleDeleteGroup = () => {
-    if (!groupId || !user?.id) return;
+    if (!groupId || !currentUser) return;
 
     const hasUnsettledDebts = (summary?.debts?.length || 0) > 0;
     if (hasUnsettledDebts) {
@@ -158,7 +154,7 @@ export default function GroupMembersScreen() {
           onPress: async () => {
             try {
               setActionLoading(true);
-              await groupService.deleteGroup(groupId, user.id);
+              await groupService.deleteGroup(groupId);
               hapticFeedback.success();
               router.replace("/(app)");
             } catch (error: any) {
@@ -227,10 +223,8 @@ export default function GroupMembersScreen() {
               {summary?.balances.map(({ user: member, netBalance }, index) => {
                 const isLender = netBalance > 0.01;
                 const isBorrower = netBalance < -0.01;
-                const isSelf = member?.clerkId === user?.id;
-                const isMemberOwner =
-                  member?.clerkId === groupOwnerId ||
-                  member?._id === groupOwnerId;
+                const isSelf = member?._id === currentUserMongoId;
+                const isMemberOwner = member?._id === groupOwnerId;
 
                 return (
                   <View

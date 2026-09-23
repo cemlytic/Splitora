@@ -44,7 +44,7 @@ export function usePushNotifications() {
 
         if (token && currentUserId && isMounted) {
           try {
-            await userService.updatePushToken(currentUserId, token);
+            await userService.updatePushToken(currentUserId);
             console.log(
               "[NotificationService] Push token registered for user:",
               currentUserId,

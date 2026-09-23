@@ -20,11 +20,13 @@ import { groupService } from "@/services/groupService";
 import { userService } from "@/services/userService";
 import type { Group } from "@/types";
 import { useAppAlert } from "@/context/AlertContext";
+import { useCurrentUser } from "@/context/UserContext";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { user } = useUser();
+  const {currentUser} = useCurrentUser();
   const { showAlert } = useAppAlert();
 
   const [groups, setGroups] = useState<Group[]>([]);
@@ -33,11 +35,11 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!user?.id) return;
+    if (!currentUser) return;
     try {
       const [groupsData, profileData] = await Promise.all([
-        groupService.getUserGroups(user.id),
-        userService.getUserProfile(user.id).catch(() => null),
+        groupService.getUserGroups(),
+        userService.getUserProfile().catch(() => null),
       ]);
 
       setGroups(groupsData);
@@ -53,7 +55,7 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id]);
+  }, [currentUser]);
 
   useFocusEffect(
     useCallback(() => {

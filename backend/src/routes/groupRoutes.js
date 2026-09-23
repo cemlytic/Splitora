@@ -6,13 +6,14 @@ import {
   leaveGroup,
   deleteGroup,
 } from "../controllers/groupControllers.js";
+import { requireUser, requireGroupMember } from "../middleware/auth.js";
 
 const router = Router();
 
-router.post("/", createGroup);
-router.post("/join", joinGroup);
-router.post("/:groupId/leave", leaveGroup);
-router.get("/user/:clerkId", getUserGroups);
-router.delete("/:groupId", deleteGroup);
+router.post("/", requireUser, createGroup);
+router.post("/join", requireUser, joinGroup);
+router.post("/:groupId/leave", requireUser, requireGroupMember, leaveGroup);
+router.get("/user/me", requireUser, getUserGroups);
+router.delete("/:groupId", requireUser, requireGroupMember, deleteGroup);
 
 export default router;

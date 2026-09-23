@@ -1,6 +1,9 @@
 import { Group } from "../db/models/Group.js";
 import { User } from "../db/models/User.js";
 import { Expense } from "../db/models/Expense.js";
+import { Settlement } from "../db/models/Settlement.js";
+import { computeGroupBalances } from "../utils/balances.js";
+import { toDollars } from "../utils/money.js";
 import crypto from "crypto";
 
 const generateInviteCode = () => {
@@ -9,16 +12,9 @@ const generateInviteCode = () => {
 
 export const createGroup = async (req, res) => {
   try {
-    const { name, clerkId } = req.body;
+    const { name } = req.body;
 
-    if (!name || !clerkId) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    const user = await User.findOne({ clerkId });
-    if (!user) {
-      return res.status(400).json({ message: "User not found" });
-    }
+    if (!name) return res.status(400).json({ message: "name is required." });
 
     let inviteCode = generateInviteCode();
     while (await Group.findOne({ inviteCode })) {
@@ -28,11 +24,11 @@ export const createGroup = async (req, res) => {
     const group = await Group.create({
       name,
       inviteCode,
-      createdBy: user._id,
-      members: [user._id],
+      createdBy: req.user._id,
+      members: [req.user._id],
     });
 
-    res.status(201).json(group);
+    res.status(200).json(group);
   } catch (error) {
     console.error("Error creating group:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -41,38 +37,28 @@ export const createGroup = async (req, res) => {
 
 export const joinGroup = async (req, res) => {
   try {
-    const { inviteCode, clerkId } = req.body;
+    const { inviteCode } = req.body;
 
-    if (!inviteCode || !clerkId) {
-      return res
-        .status(400)
-        .json({ error: "Invite code and clerkId are required" });
-    }
-
-    const user = await User.findOne({ clerkId });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    if (!inviteCode) {
+      return res.status(400).json({ error: "Invite code is required." });
     }
 
     const group = await Group.findOne({
       inviteCode: String(inviteCode).toUpperCase(),
     });
 
-    if (!group) {
-      return res.status(400).json({ message: "Invalid code" });
-    }
+    if (!group) return res.status(400).json({ message: "Invalid code." });
 
     const isAlreadyMember = group.members.some(
-      (memberId) => memberId.toString() === user._id.toString(),
+      (memberId) => memberId.toString() === req.user._id.toString(),
     );
 
-    if (group.members.includes(user._id)) {
+    if (isAlreadyMember)
       return res
         .status(400)
-        .json({ error: "You are already a member of this group" });
-    }
+        .json({ error: "You are already member of this group." });
 
-    group.members.push(user._id);
+    group.members.push(req.user._id);
     await group.save();
 
     res.status(200).json(group);
@@ -84,15 +70,8 @@ export const joinGroup = async (req, res) => {
 
 export const getUserGroups = async (req, res) => {
   try {
-    const { clerkId } = req.params;
-
-    const user = await User.findOne({ clerkId });
-    if (!user) {
-      return res.status(404).json({ message: "user not found" });
-    }
-
-    const groups = await Group.find({ members: user._id })
-      .populate("members", "name email avatarUrl clerkId")
+    const groups = await Group.find({ members: req.user._id })
+      .populate("members", "name email avatarUrl")
       .sort({ createdAt: -1 });
 
     res.status(200).json(groups);
@@ -104,57 +83,29 @@ export const getUserGroups = async (req, res) => {
 
 export const leaveGroup = async (req, res) => {
   try {
-    const { groupId } = req.params;
-    const { clerkId } = req.body;
+    const group = req.group;
+    const userId = req.user._id;
 
-    if (!groupId || !clerkId)
-      return res.status(400).json({ message: "Missing fields" });
+    const [members, expenses, settlements] = await Promise.all([
+      User.find({ _id: { $in: group.members } }),
+      Expense.find({ groupId: group._id }),
+      Settlement.find({ groupId: group._id }),
+    ]);
 
-    const user = await User.findOne({ clerkId });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const balances = computeGroupBalances(members, expenses, settlements);
+    const netCents = balances[userId.toString()]?.netCents || 0;
 
-    const group = await Group.findById(groupId);
-    if (!group) return res.status(404).json({ message: "Group not found" });
-
-    const isMember = group.members.some(
-      (m) => m.toString() === user._id.toString(),
-    );
-    if (!isMember)
-      return res
-        .status(400)
-        .json({ message: "You are not a member of this group." });
-
-    const expenses = await Expense.find({ groupId });
-    let netBalance = 0;
-
-    expenses.forEach((expense) => {
-      const isPayer = expense.paidBy.toString() === user._id.toString();
-
-      expense.splits.forEach((split) => {
-        const isSplitUser = split.user.toString() === user._id.toString();
-
-        if (!split.isSettled) {
-          if (isSplitUser && !isPayer) {
-            netBalance -= split.amount;
-          }
-          if (isPayer && !isSplitUser) {
-            netBalance += split.amount;
-          }
-        }
-      });
-    });
-
-    if (Math.abs(netBalance) >= 0.01) {
-      const formatted = Math.abs(netBalance).toFixed(2);
+    if (Math.abs(netCents) >= 1) {
+      const formatted = toDollars(Math.abs(netCents)).toFixed(2);
       const reason =
-        netBalance < 0
+        netCents < 0
           ? `You have outstanding debts ($${formatted}). Please settle up before leaving.`
           : `You have pending credits ($${formatted}). Please collect your balance before leaving.`;
       return res.status(400).json({ message: reason });
     }
 
-    const isOwner = group.createdBy?.toString() === user._id.toString();
-    if (isOwner && group.members.length > 0) {
+    const isOwner = group.createdBy?.toString() === userId.toString();
+    if (isOwner && group.members.length > 1) {
       return res.status(400).json({
         message:
           "As the group creator, you cannot leave while other members are present. You can delete the space instead.",
@@ -162,7 +113,7 @@ export const leaveGroup = async (req, res) => {
     }
 
     group.members = group.members.filter(
-      (m) => m.toString() !== user._id.toString(),
+      (m) => m.toString() !== userId.toString(),
     );
 
     if (group.members.length === 0) {
@@ -170,11 +121,11 @@ export const leaveGroup = async (req, res) => {
       await Group.findByIdAndDelete(group._id);
       return res
         .status(200)
-        .json({ message: "Group and history deleted as last member left." });
+        .json({ message: "Group and history deleted as last member left" });
     }
 
-    await group.save();
-    return res.status(200).json({ message: "Successfully left the group." });
+    await Group.save();
+    return res.status(200).json({ message: "Succesfully left the group." });
   } catch (error) {
     console.error("Error leaving group:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -183,44 +134,27 @@ export const leaveGroup = async (req, res) => {
 
 export const deleteGroup = async (req, res) => {
   try {
-    const { groupId } = req.params;
-    const clerkId = req.body?.clerkId || req.query?.clerkId;
+    const group = req.group;
+    const userId = req.user._id;
 
-    if (!groupId || !clerkId) {
-      return res
-        .status(400)
-        .json({ message: "Group ID and Clerk ID are required" });
-    }
-
-    const user = await User.findOne({ clerkId });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const group = await Group.findById(groupId);
-    if (!group) {
-      return res.status(404).json({ message: "Group not found" });
-    }
-
-    const creatorId = group.createdBy?.toString();
-    const isOwner =
-      creatorId === user._id.toString() ||
-      creatorId === user.clerkId;
-
-    if (!isOwner) {
+    const isOwner = group.createdBy?.toString() === userId.toString();
+    if (!isOwner)
       return res
         .status(403)
-        .json({ message: "Only the group creator can delete this space" });
-    }
+        .json({ message: "Only the group creator can delete this space." });
 
-    const expenses = await Expense.find({ groupId });
-    const hasUnsettledSplits = expenses.some((exp) =>
-      exp.splits.some(
-        (s) => !s.isSettled && s.user.toString() !== user._id.toString(),
-      ),
+    const [members, expenses, settlements] = await Promise.all([
+      User.find({ _id: { $in: group.members } }),
+      Expense.find({ groupId: group._id }),
+      Settlement.find({ groupId: group._id }),
+    ]);
+
+    const balances = computeGroupBalances(members, expenses, settlements);
+    const hasOutstandingBalances = Object.values(balances).some(
+      (b) => Math.abs(b.netCents) >= 1,
     );
 
-    if (hasUnsettledSplits) {
+    if (hasOutstandingBalances) {
       return res.status(400).json({
         message:
           "Cannot delete group with unsettled debts. All balances must be settled first.",
@@ -228,6 +162,7 @@ export const deleteGroup = async (req, res) => {
     }
 
     await Expense.deleteMany({ groupId: group._id });
+    await Settlement.deleteMany({ groupId: group._id });
     await Group.findByIdAndDelete(group._id);
 
     return res.status(200).json({ message: "Group deleted successfully" });

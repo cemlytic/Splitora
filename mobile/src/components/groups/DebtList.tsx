@@ -8,7 +8,7 @@ interface DebtListProps {
   summary: GroupSummary | null;
   currentUserId: string | undefined;
   onSettleUp: (debtInfo: {
-    receiverClerkId: string;
+    receiverId: string;
     receiverName: string;
     receiverIban?: string;
     accountHolder?: string;
@@ -48,8 +48,8 @@ export default function DebtList({
   return (
     <View className="mt-5 gap-3">
       {debts.map((debt: any, index: number) => {
-        const iOwe = debt.from.clerkId === currentUserId;
-        const owesMe = debt.to.clerkId === currentUserId;
+        const iOwe = debt.from._id === currentUserId;
+        const owesMe = debt.to._id === currentUserId;
 
         return (
           <View
@@ -94,7 +94,7 @@ export default function DebtList({
                 onPress={() => {
                   hapticFeedback.light();
                   onSettleUp({
-                    receiverClerkId: debt.to.clerkId,
+                    receiverId: debt.to._id,
                     receiverName: debt.to.name,
                     receiverIban: debt.to.iban,
                     accountHolder: debt.to.bankAccountHolder,

@@ -1,4 +1,4 @@
-import { useSyncUser } from "@/hooks/useSyncUser";
+import { useCurrentUser } from "@/context/UserContext";
 import { Stack } from "expo-router";
 import SafeScreen from "@/components/SafeScreen";
 import HomeSkeleton from "@/components/skeletons/HomeSkeleton";
@@ -6,7 +6,7 @@ import { ScrollView, View } from "react-native";
 import Skeleton from "@/components/skeletons/Skeleton";
 
 export default function AppLayout() {
-  const { isSynced, syncLoading } = useSyncUser();
+  const { isSynced, syncLoading } = useCurrentUser();
 
   if (syncLoading && !isSynced) {
     return (
