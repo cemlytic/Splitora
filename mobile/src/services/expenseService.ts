@@ -9,8 +9,8 @@ import {
 
 export const expenseService = {
   getExpenses: async (groupId: string): Promise<Expense[]> => {
-    const res = await api.get<Expense[]>(`/expenses/group/${groupId}`);
-    return res.data;
+    const res = await api.get<{data: Expense[]}>(`/expenses/group/${groupId}`);
+    return res.data.data;
   },
 
   getSummary: async (groupId: string): Promise<GroupSummary> => {

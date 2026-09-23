@@ -25,6 +25,7 @@
     "dotenv": "^17.4.2",
     "expo-server-sdk": "^7.2.0",
     "express": "^5.2.1",
-    "mongoose": "^9.9.5"
+    "mongoose": "^9.9.5",
+    "zod": "^4.6.5"
   }
 }
