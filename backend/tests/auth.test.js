@@ -34,7 +34,7 @@ describe("Auth enforcement", () => {
       .get("/api/groups/user/me")
       .set("X-Test-Clerk-Id", "alice-clerk-id");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.data).toEqual([]);
   });
 
   it("blocks a non member from reading another group's expenses", async () => {

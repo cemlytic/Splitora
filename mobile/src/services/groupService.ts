@@ -3,7 +3,12 @@ import { CreateGroupPayload, Group, JoinGroupPayload } from "@/types";
 
 export const groupService = {
   getUserGroups: async (): Promise<Group[]> => {
-    const response = await api.get<Group[]>("/groups/user/me");
+    const response = await api.get<{ data: Group[] }>("/groups/user/me");
+    return response.data.data;
+  },
+
+  getGroupById: async (groupId: string): Promise<Group> => {
+    const response = await api.get<Group>(`/groups/${groupId}`);
     return response.data;
   },
 

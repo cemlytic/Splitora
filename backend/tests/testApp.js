@@ -4,6 +4,7 @@ import { clerk } from "../src/middleware/auth.js";
 import userRoutes from "../src/routes/userRoutes.js";
 import groupRoutes from "../src/routes/groupRoutes.js";
 import expenseRoutes from "../src/routes/expenseRoutes.js";
+import { errorHandler } from "../src/middleware/errorHandler.js";
 
 export const createTestApp = () => {
   const app = express();
@@ -13,6 +14,7 @@ export const createTestApp = () => {
   app.use("/api/users", userRoutes);
   app.use("/api/groups", groupRoutes);
   app.use("/api/expenses", expenseRoutes);
+  app.use(errorHandler);
 
   return app;
 };
