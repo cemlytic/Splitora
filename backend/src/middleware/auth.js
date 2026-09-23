@@ -5,7 +5,13 @@ import { Group } from "../db/models/Group.js";
 export const clerk = clerkMiddleware();
 
 export const requireUser = async (req, res, next) => {
-  const { userId } = getAuth(req);
+  let userId;
+
+  if (process.env.NODE_ENV === "test" && req.headers["x-test-clerk-id"]) {
+    userId = req.headers["x-test-clerk-id"];
+  } else {
+    userId = getAuth(req).userId;
+  }
 
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -13,7 +19,7 @@ export const requireUser = async (req, res, next) => {
 
   const user = await User.findOne({ clerkId: userId });
   if (!user) {
-    return res.status(401).json({ message: "user not synced." });
+    return res.status(401).json({ message: "User not synced" });
   }
 
   req.user = user;
@@ -21,6 +27,13 @@ export const requireUser = async (req, res, next) => {
 };
 
 export const requireAuth = async (req, res, next) => {
+  if (process.env.NODE_ENV === "test") {
+    const testUserId = req.headers["x-test-clerk-id"];
+    if (testUserId) {
+      req.clerkId = testUserId;
+      return next();
+    }
+  }
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ message: "Unauhtorized." });
   req.clerkId = userId;
