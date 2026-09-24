@@ -39,6 +39,7 @@ export interface Expense {
   receiptUrl?: string | null;
   createdAt: string;
   locked?: boolean;
+  hasReceipt?: boolean;
 }
 
 export interface BalanceItem {

@@ -7,12 +7,18 @@ import { toCents, toDollars, splitEvenly } from "../utils/money.js";
 import { computeGroupBalances, simplifyDebts } from "../utils/balances.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { AppError } from "../utils/AppError.js";
+import {
+  uploadReceiptImage,
+  isBase64DataUri,
+} from "../utils/receiptStorage.js";
 
-const serializeExpense = (expenseDoc, extra = {}) => {
+const serializeExpense = (expenseDoc, extra = {}, options = {}) => {
   const obj = expenseDoc.toObject ? expenseDoc.toObject() : expenseDoc;
   return {
     ...obj,
     amount: toDollars(obj.amountCents),
+    receiptUrl: options.omitReceipt ? undefined : obj.receiptUrl,
+    hasReceipt: Boolean(obj.receiptUrl),
     splits: obj.splits.map((s) => ({ ...s, amount: toDollars(s.amountCents) })),
     ...extra,
   };
@@ -64,6 +70,10 @@ export const createExpense = asyncHandler(async (req, res) => {
   const amountCents = toCents(amount);
   const targetMemberIds = resolveTargetMemberIds(group, splitUserIds);
 
+  const storedReceiptUrl = isBase64DataUri(receiptUrl)
+    ? await uploadReceiptImage(receiptUrl)
+    : receiptUrl || null;
+
   const centsPerPerson = splitEvenly(amountCents, targetMemberIds.length);
   const splits = targetMemberIds.map((memberIdStr, index) => ({
     user: memberIdStr,
@@ -77,7 +87,7 @@ export const createExpense = asyncHandler(async (req, res) => {
     category: category || "general",
     paidBy: user._id,
     splits,
-    receiptUrl: receiptUrl || null,
+    receiptUrl: storedReceiptUrl,
   });
 
   const populatedExpense = await Expense.findById(newExpense._id)
@@ -143,7 +153,7 @@ export const getGroupExpenses = asyncHandler(async (req, res) => {
   ]);
 
   res.status(200).json({
-    data: expenses.map((e) => serializeExpense(e)),
+    data: expenses.map((e) => serializeExpense(e, {}, { omitReceipt: true })),
     page,
     limit,
     total,
@@ -308,7 +318,11 @@ export const updateExpense = asyncHandler(async (req, res) => {
     user: memberIdStr,
     amountCents: centsPerPerson[index],
   }));
-  if (receiptUrl !== undefined) expense.receiptUrl = receiptUrl;
+  if (receiptUrl !== undefined) {
+    expense.receiptUrl = isBase64DataUri(receiptUrl)
+      ? await uploadReceiptImage(receiptUrl)
+      : receiptUrl;
+  }
 
   await expense.save();
 

@@ -16,7 +16,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/expenses", expenseRoutes);
 
-app.use(errorHandler)
+app.use(errorHandler);
 const PORT = env.PORT;
 
 connectDB().then(() => {
