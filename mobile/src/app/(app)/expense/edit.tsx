@@ -10,7 +10,6 @@ import {
   ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCurrentUser } from "@/context/UserContext";
 import {
@@ -24,12 +23,14 @@ import {
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import ReceiptPicker from "@/components/expenses/ReceiptPicker";
-import { expenseService } from "@/services/expenseService";
-import { groupService } from "@/services/groupService";
+import {
+  useExpense,
+  useGroup,
+  useUpdateExpense,
+} from "@/hooks/useGroupQueries";
 import { hapticFeedback } from "@/utils/haptics";
 import { useAppAlert } from "@/context/AlertContext";
 import TopNavigation from "@/components/common/TopNavigation";
-import type { Group, Expense } from "@/types";
 import { formatCurrency } from "@/utils/formatCurrency";
 
 const CATEGORIES = [
@@ -50,44 +51,33 @@ export default function EditExpenseScreen() {
   const [amount, setAmount] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("general");
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
-
-  const [group, setGroup] = useState<Group | null>(null);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
 
+  const expenseQuery = useExpense(id);
+  const expense = expenseQuery.data;
+  const fetching = expenseQuery.isLoading;
+
+  const groupQuery = useGroup(expense?.groupId);
+  const group = groupQuery.data ?? null;
+
+  const updateExpenseMutation = useUpdateExpense(expense?.groupId ?? "");
+  const loading = updateExpenseMutation.isPending;
+
+  // expense yüklendiğinde form alanlarını bir kereye mahsus doldur.
   useEffect(() => {
-    if (!id || !currentUser) return;
+    if (!expense) return;
 
-    setFetching(true);
-    expenseService
-      .getExpenseById(id)
-      .then(async (expenseData: Expense) => {
-        setTitle(expenseData.title);
-        setAmount(expenseData.amount.toString());
-        setSelectedCategory(expenseData.category || "general");
-        setReceiptImage(expenseData.receiptUrl || null);
+    setTitle(expense.title);
+    setAmount(expense.amount.toString());
+    setSelectedCategory(expense.category || "general");
+    setReceiptImage(expense.receiptUrl || null);
 
-        const activeIds = expenseData.splits.map((s) =>
-          typeof s.user === "string" ? s.user : (s.user as any)._id,
-        );
-        setSelectedMemberIds(activeIds);
-
-        const userGroups = await groupService.getUserGroups();
-        const current = userGroups.find((g) => g._id === expenseData.groupId);
-        if (current) setGroup(current);
-      })
-      .catch((err) => {
-        console.error("Error fetching expense:", err);
-        showAlert({
-          title: "Error",
-          message: "Failed to load expense details. Please try again.",
-          type: "warning",
-        });
-      })
-      .finally(() => setFetching(false));
-  }, [id, currentUser, showAlert]);
+    const activeIds = expense.splits.map((s) =>
+      typeof s.user === "string" ? s.user : (s.user as any)._id,
+    );
+    setSelectedMemberIds(activeIds);
+  }, [expense?._id]);
 
   const toggleMember = (memberId: string) => {
     hapticFeedback.light();
@@ -110,31 +100,6 @@ export default function EditExpenseScreen() {
       setSelectedMemberIds([allIds[0]]);
     } else {
       setSelectedMemberIds(allIds);
-    }
-  };
-
-  const handlePickImage = async () => {
-    hapticFeedback.light();
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.4,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets[0]?.base64) {
-        setReceiptImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
-        hapticFeedback.success();
-      }
-    } catch (error) {
-      console.error("Image pick error:", error);
-      showAlert({
-        title: "Image Error",
-        message: "Could not attach receipt image. Please try again.",
-        type: "warning",
-      });
     }
   };
 
@@ -166,8 +131,7 @@ export default function EditExpenseScreen() {
     if (!currentUser || !id) return;
 
     try {
-      setLoading(true);
-      await expenseService.updateExpense({
+      await updateExpenseMutation.mutateAsync({
         expenseId: id,
         title: trimmedTitle,
         amount: parsedAmount,
@@ -197,8 +161,6 @@ export default function EditExpenseScreen() {
           "Could not update this expense. Ensure no settlements have been paid.",
         type: "warning",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -467,9 +429,7 @@ export default function EditExpenseScreen() {
                           {memberName}
                           {isSelf && (
                             <Text
-                              style={{
-                                fontFamily: "SpaceGrotesk_400Regular",
-                              }}
+                              style={{ fontFamily: "SpaceGrotesk_400Regular" }}
                               className="text-muted text-xs"
                             >
                               {" "}

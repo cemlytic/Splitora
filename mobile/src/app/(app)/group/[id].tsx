@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,7 @@ import {
   RefreshControl,
   Share,
 } from "react-native";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCurrentUser } from "@/context/UserContext";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import {
   Plus,
@@ -21,9 +20,13 @@ import {
   Download,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
-import { expenseService } from "@/services/expenseService";
-import { groupService } from "@/services/groupService";
-import type { Expense, Group, GroupSummary } from "@/types";
+import { useCurrentUser } from "@/context/UserContext";
+import {
+  useGroup,
+  useGroupExpenses,
+  useGroupSummary,
+  useSettleUp,
+} from "@/hooks/useGroupQueries";
 import BalanceHeroCard from "@/components/groups/BalanceHeroCard";
 import GroupTabs, { type GroupTabType } from "@/components/groups/GroupTabs";
 import ExpenseList from "@/components/groups/ExpenseList";
@@ -42,14 +45,13 @@ export default function GroupDetailScreen() {
   const { showAlert } = useAppAlert();
 
   const [activeTab, setActiveTab] = useState<GroupTabType>("expenses");
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [group, setGroup] = useState<Group | null>(null);
-  const [summary, setSummary] = useState<GroupSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [settling, setSettling] = useState(false);
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  const groupQuery = useGroup(id);
+  const expensesQuery = useGroupExpenses(id);
+  const summaryQuery = useGroupSummary(id);
+  const settleUpMutation = useSettleUp(id!);
 
   const [payModalData, setPayModalData] = useState<{
     visible: boolean;
@@ -58,42 +60,23 @@ export default function GroupDetailScreen() {
     accountHolder?: string;
     amount: number;
     receiverId: string;
-  }>({
-    visible: false,
-    receiverName: "",
-    amount: 0,
-    receiverId: "",
-  });
+  }>({ visible: false, receiverName: "", amount: 0, receiverId: "" });
 
-  const fetchData = useCallback(async () => {
-    if (!id || !currentUser) return;
-    try {
-      const [expensesData, summaryData, userGroups] = await Promise.all([
-        expenseService.getExpenses(id),
-        expenseService.getSummary(id),
-        groupService.getUserGroups(),
-      ]);
-      setExpenses(expensesData);
-      setSummary(summaryData);
-      const currentGroup = userGroups.find((g) => g._id === id) || null;
-      setGroup(currentGroup);
-    } catch (error) {
-      console.error("Failed to load group details:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [id, currentUser]);
+  const loading =
+    groupQuery.isLoading || expensesQuery.isLoading || summaryQuery.isLoading;
+  const refreshing =
+    groupQuery.isRefetching ||
+    expensesQuery.isRefetching ||
+    summaryQuery.isRefetchError;
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [fetchData]),
-  );
+  const group = groupQuery.data ?? null;
+  const expenses = expensesQuery.data ?? [];
+  const summary = summaryQuery.data ?? null;
 
   const onRefresh = () => {
-    setRefreshing(true);
-    fetchData();
+    groupQuery.refetch();
+    expensesQuery.refetch();
+    summaryQuery.refetch();
   };
 
   const handleCopyCode = async () => {
@@ -136,16 +119,12 @@ export default function GroupDetailScreen() {
     if (!currentUser || !id || !payModalData.receiverId) return;
 
     try {
-      setSettling(true);
-      await expenseService.settleUp(
-        id,
-        payModalData.receiverId,
-        payModalData.amount,
-      );
-
+      await settleUpMutation.mutateAsync({
+        receiverId: payModalData.receiverId,
+        amount: payModalData.amount,
+      });
       hapticFeedback.success();
-      setPayModalData((prev) => ({ ...prev, visible: false }));
-      fetchData();
+      setPayModalData((prev) => ({ ...prev, visible: true }));
     } catch (error: any) {
       hapticFeedback.error();
       showAlert({
@@ -155,8 +134,6 @@ export default function GroupDetailScreen() {
           "Could not complete settlement. Please try again.",
         type: "warning",
       });
-    } finally {
-      setSettling(false);
     }
   };
 
@@ -364,7 +341,7 @@ export default function GroupDetailScreen() {
         accountHolder={payModalData.accountHolder}
         amount={payModalData.amount}
         onConfirmSettlement={handleConfirmSettlement}
-        loading={settling}
+        loading={settleUpMutation.isPending}
       />
     </SafeScreen>
   );

@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +8,6 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCurrentUser } from "@/context/UserContext";
 import {
   Users,
   ArrowDownLeft,
@@ -20,9 +18,13 @@ import {
   Crown,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
-import { expenseService } from "@/services/expenseService";
-import { groupService } from "@/services/groupService";
-import type { Group, GroupSummary } from "@/types";
+import { useCurrentUser } from "@/context/UserContext";
+import {
+  useGroup,
+  useGroupSummary,
+  useLeaveGroup,
+  useDeleteGroup,
+} from "@/hooks/useGroupQueries";
 import { formatCurrency } from "@/utils/formatCurrency";
 import MembersSkeleton from "@/components/skeletons/MembersSkeleton";
 import { useAppAlert } from "@/context/AlertContext";
@@ -35,32 +37,18 @@ export default function GroupMembersScreen() {
   const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
-  const [summary, setSummary] = useState<GroupSummary | null>(null);
-  const [group, setGroup] = useState<Group | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const groupQuery = useGroup(groupId);
+  const summaryQuery = useGroupSummary(groupId);
+  const leaveGroupMutation = useLeaveGroup();
+  const deleteGroupMutation = useDeleteGroup();
 
-  useEffect(() => {
-    if (!groupId || !currentUser) return;
-    setLoading(true);
-
-    Promise.all([
-      expenseService.getSummary(groupId),
-      groupService.getUserGroups(),
-    ])
-      .then(([summaryData, userGroups]) => {
-        setSummary(summaryData);
-        const current = userGroups.find((g) => g._id === groupId) || null;
-        setGroup(current);
-      })
-      .catch((error) =>
-        console.error("Could not fetch members details:", error),
-      )
-      .finally(() => setLoading(false));
-  }, [groupId, currentUser]);
+  const loading = groupQuery.isLoading || summaryQuery.isLoading;
+  const actionLoading =
+    leaveGroupMutation.isPending || deleteGroupMutation.isPending;
+  const group = groupQuery.data ?? null;
+  const summary = summaryQuery.data ?? null;
 
   const memberCount = summary?.balances.length || 0;
-
   const currentUserMongoId = currentUser?._id;
 
   const currentUserBalance =
@@ -103,8 +91,7 @@ export default function GroupMembersScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              setActionLoading(true);
-              await groupService.leaveGroup(groupId);
+              await leaveGroupMutation.mutateAsync(groupId);
               hapticFeedback.success();
               router.replace("/(app)");
             } catch (error: any) {
@@ -116,8 +103,6 @@ export default function GroupMembersScreen() {
                   "Could not leave space. Please try again.",
                 type: "warning",
               });
-            } finally {
-              setActionLoading(false);
             }
           },
         },
@@ -153,8 +138,7 @@ export default function GroupMembersScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              setActionLoading(true);
-              await groupService.deleteGroup(groupId);
+              await deleteGroupMutation.mutateAsync(groupId);
               hapticFeedback.success();
               router.replace("/(app)");
             } catch (error: any) {
@@ -166,8 +150,6 @@ export default function GroupMembersScreen() {
                   "Could not delete space. Please try again.",
                 type: "warning",
               });
-            } finally {
-              setActionLoading(false);
             }
           },
         },
@@ -181,14 +163,12 @@ export default function GroupMembersScreen() {
 
       <View className="flex-row items-center justify-between py-3">
         <TopNavigation />
-
         <Text
           style={{ fontFamily: "SpaceGrotesk_700Bold" }}
           className="text-base tracking-tight text-ink"
         >
           Space Directory
         </Text>
-
         <View className="h-10 w-10" />
       </View>
 
