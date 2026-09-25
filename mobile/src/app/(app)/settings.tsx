@@ -29,6 +29,8 @@ import SettingsSkeleton from "@/components/skeletons/SettingsSkeleton";
 import { useAppAlert } from "@/context/AlertContext";
 import { hapticFeedback } from "@/utils/haptics";
 import { userService } from "@/services/userService";
+import { useUserProfile } from "@/hooks/useGroupQueries";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/context/UserContext";
 import { formatIban } from "@/utils/formatIban";
 
@@ -51,19 +53,24 @@ export default function SettingsScreen() {
   const [isIbanFocused, setIsIbanFocused] = useState(false);
   const [isHolderFocused, setIsHolderFocused] = useState(false);
 
+  const queryClient = useQueryClient();
+  const profileQuery = useUserProfile();
+
   useEffect(() => {
-    if (!currentUser) return;
-    if (currentUser.iban) {
-      const formatted = formatIban(currentUser.iban);
+    if (!profileQuery.data) return;
+    if (profileQuery.data.iban) {
+      const formatted = formatIban(profileQuery.data.iban);
       setIban(formatted);
       setInitialIban(formatted);
     }
-    if (currentUser.bankAccountHolder) {
-      setAccountHolder(currentUser.bankAccountHolder);
-      setInitialHolder(currentUser.bankAccountHolder);
+    if (profileQuery.data.bankAccountHolder) {
+      setAccountHolder(profileQuery.data.bankAccountHolder);
+      setInitialHolder(profileQuery.data.bankAccountHolder);
     }
-    setIsEditing(!(currentUser.iban || currentUser.bankAccountHolder));
-  }, [currentUser]);
+    setIsEditing(
+      !(profileQuery.data.iban || profileQuery.data.bankAccountHolder),
+    );
+  }, []);
 
   const hasChanges =
     iban.trim() !== initialIban.trim() ||
@@ -99,7 +106,8 @@ export default function SettingsScreen() {
         iban: cleanIban,
         bankAccountHolder: cleanHolder,
       });
-      await refreshUser()
+      await refreshUser();
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
 
       setInitialIban(iban);
       setInitialHolder(accountHolder);

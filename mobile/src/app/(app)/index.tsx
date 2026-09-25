@@ -1,4 +1,3 @@
-import { useCallback, useState } from "react";
 import {
   RefreshControl,
   ScrollView,
@@ -7,66 +6,36 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useAuth, useUser } from "@clerk/expo";
 import { ArrowRight, Building2 } from "lucide-react-native";
-
 import SafeScreen from "@/components/SafeScreen";
 import Header from "@/components/home/Header";
 import HeroCard from "@/components/home/HeroCard";
 import GroupList from "@/components/home/GroupList";
 import HomeSkeleton from "@/components/skeletons/HomeSkeleton";
-import { groupService } from "@/services/groupService";
-import { userService } from "@/services/userService";
-import type { Group } from "@/types";
 import { useAppAlert } from "@/context/AlertContext";
-import { useCurrentUser } from "@/context/UserContext";
+import { useUserGroups, useUserProfile } from "@/hooks/useGroupQueries";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { user } = useUser();
-  const {currentUser} = useCurrentUser();
   const { showAlert } = useAppAlert();
 
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [hasMissingPaymentInfo, setHasMissingPaymentInfo] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const groupsQuery = useUserGroups();
+  const profileQuery = useUserProfile();
 
-  const fetchData = useCallback(async () => {
-    if (!currentUser) return;
-    try {
-      const [groupsData, profileData] = await Promise.all([
-        groupService.getUserGroups(),
-        userService.getUserProfile().catch(() => null),
-      ]);
+  const loading = groupsQuery.isLoading || profileQuery.isLoading;
+  const refreshing = groupsQuery.isRefetching;
+  const groups = groupsQuery.data ?? [];
+  const hasMissingPaymentInfo =
+    !profileQuery.data?.iban || !profileQuery.data?.bankAccountHolder;
 
-      setGroups(groupsData);
-
-      if (!profileData?.iban || !profileData?.bankAccountHolder) {
-        setHasMissingPaymentInfo(true);
-      } else {
-        setHasMissingPaymentInfo(false);
-      }
-    } catch (error) {
-      console.error("Failed to load home data:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [currentUser]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [fetchData]),
-  );
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchData();
-  }, [fetchData]);
+  const onRefresh = () => {
+    groupsQuery.refetch();
+    profileQuery.refetch();
+  };
 
   const handleSignOut = () => {
     showAlert({
@@ -108,7 +77,7 @@ export default function HomeScreen() {
         <Header
           user={user}
           onSignOut={handleSignOut}
-          hasMissingPaymentInfo={hasMissingPaymentInfo}
+          hasMissingPaymentInfo={!loading && hasMissingPaymentInfo}
         />
 
         {!loading && hasMissingPaymentInfo && (
@@ -156,3 +125,4 @@ export default function HomeScreen() {
     </SafeScreen>
   );
 }
+

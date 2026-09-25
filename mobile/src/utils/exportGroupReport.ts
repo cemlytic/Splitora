@@ -32,14 +32,11 @@ export const exportGroupToCSV = async (
     const date = exp.createdAt
       ? new Date(exp.createdAt).toLocaleDateString()
       : "N/A";
-    const settledCount = exp.splits.filter((s) => s.isSettled).length;
-    const totalSplits = exp.splits.length;
-    const status =
-      settledCount === totalSplits
-        ? "Fully Settled"
-        : `${settledCount}/${totalSplits} Settled`;
+    const splitCount = exp.splits.length;
 
-    lines.push(`${title},${category},${amount},${paidBy},${date},${status}`);
+    lines.push(
+      `${title},${category},${amount},${paidBy},${date},${splitCount}`,
+    );
   });
 
   lines.push("");

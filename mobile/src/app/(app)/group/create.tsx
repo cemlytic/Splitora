@@ -12,7 +12,7 @@ import { useRouter } from "expo-router";
 import { useCurrentUser } from "@/context/UserContext";
 import { Sparkles, FolderPlus } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
-import { groupService } from "@/services/groupService";
+import { useCreateGroup } from "@/hooks/useGroupQueries";
 import TopNavigation from "@/components/common/TopNavigation";
 import { useAppAlert } from "@/context/AlertContext";
 import { hapticFeedback } from "@/utils/haptics";
@@ -30,8 +30,10 @@ export default function CreateGroupScreen() {
   const { showAlert } = useAppAlert();
 
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+
+  const createGroupMutation = useCreateGroup();
+  const loading = createGroupMutation.isPending;
 
   const handleCreate = async () => {
     const trimmedName = name.trim();
@@ -55,14 +57,11 @@ export default function CreateGroupScreen() {
     }
 
     try {
-      setLoading(true);
-      const newGroup = await groupService.createGroup({
-        name: trimmedName,
-      });
+      const newGRoup = await createGroupMutation.mutateAsync(trimmedName);
       hapticFeedback.success();
-      router.replace(`/group/${newGroup._id}`);
+      router.replace(`/group/${newGRoup._id}`);
     } catch (error: any) {
-      console.error("Group creation error:", error?.response?.data || error);
+      console.error("Group creation error: ", error?.response?.data || error);
       showAlert({
         title: "Creation Failed",
         message:
@@ -70,8 +69,6 @@ export default function CreateGroupScreen() {
           "Something went wrong while creating the space.",
         type: "warning",
       });
-    } finally {
-      setLoading(false);
     }
   };
 

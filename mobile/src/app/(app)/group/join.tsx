@@ -13,7 +13,7 @@ import { useCurrentUser } from "@/context/UserContext";
 import * as Clipboard from "expo-clipboard";
 import { KeyRound, ClipboardPaste, ArrowRight } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
-import { groupService } from "@/services/groupService";
+import { useJoinGroup } from "@/hooks/useGroupQueries";
 import TopNavigation from "@/components/common/TopNavigation";
 import { useAppAlert } from "@/context/AlertContext";
 import { hapticFeedback } from "@/utils/haptics";
@@ -24,8 +24,10 @@ export default function JoinGroupScreen() {
   const { showAlert } = useAppAlert();
 
   const [inviteCode, setInviteCode] = useState("");
-  const [loading, setLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+
+  const joinGroupMutation = useJoinGroup();
+  const loading = joinGroupMutation.isPending;
 
   const handlePaste = async () => {
     try {
@@ -61,10 +63,7 @@ export default function JoinGroupScreen() {
     }
 
     try {
-      setLoading(true);
-      const joinedGroup = await groupService.joinGroup({
-        inviteCode: cleanCode,
-      });
+      const joinedGroup = await joinGroupMutation.mutateAsync(cleanCode);
       hapticFeedback.success();
       router.replace(`/group/${joinedGroup._id}`);
     } catch (error: any) {
@@ -77,8 +76,6 @@ export default function JoinGroupScreen() {
           "This invite code appears to be invalid or expired. Check with your friend and try again.",
         type: "warning",
       });
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
 import { Slot, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   useFonts,
   SpaceGrotesk_400Regular,
@@ -25,13 +26,21 @@ if (!publishableKey) {
   throw new Error("Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in .env");
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30 * 1000,
+      retry: 1,
+    },
+  },
+});
+
 function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const segments = useSegments() as string[];
   const router = useRouter();
 
   usePushNotifications();
-
   useNotificationObserver();
 
   useEffect(() => {
@@ -55,11 +64,13 @@ function InitialLayout({ fontsLoaded }: { fontsLoaded: boolean }) {
   }
 
   return (
-    <UserProvider>
-      <AlertProvider>
-        <Slot />
-      </AlertProvider>
-    </UserProvider>
+    <QueryClientProvider client={queryClient}>
+      <UserProvider>
+        <AlertProvider>
+          <Slot />
+        </AlertProvider>
+      </UserProvider>
+    </QueryClientProvider>
   );
 }
 

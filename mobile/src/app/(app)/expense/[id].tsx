@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Pressable,
 } from "react-native";
 import { Image } from "expo-image";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCurrentUser } from "@/context/UserContext";
 import {
   Trash2,
@@ -21,8 +21,7 @@ import {
   X,
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
-import { expenseService } from "@/services/expenseService";
-import type { Expense } from "@/types";
+import { useExpense, useDeleteExpense } from "@/hooks/useGroupQueries";
 import { formatCurrency } from "@/utils/formatCurrency";
 import TopNavigation from "@/components/common/TopNavigation";
 import { hapticFeedback } from "@/utils/haptics";
@@ -35,32 +34,10 @@ export default function ExpenseDetailScreen() {
   const { currentUser } = useCurrentUser();
   const { showAlert } = useAppAlert();
 
-  const [expense, setExpense] = useState<Expense | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
   const [showFullReceipt, setShowFullReceipt] = useState(false);
 
-  const fetchExpense = useCallback(() => {
-    if (!id) return;
-    expenseService
-      .getExpenseById(id)
-      .then((data) => setExpense(data))
-      .catch((err) => {
-        console.error("Failed to load expense details:", err);
-        showAlert({
-          title: "Error",
-          message: "Could not fetch expense details. Please try again.",
-          type: "warning",
-        });
-      })
-      .finally(() => setLoading(false));
-  }, [id, showAlert]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchExpense();
-    }, [fetchExpense]),
-  );
+  const { data: expense, isLoading: loading } = useExpense(id);
+  const deleteExpenseMutation = useDeleteExpense(expense?.groupId ?? "");
 
   const isPayer = expense?.paidBy?._id === currentUser?._id;
   const isLocked = Boolean(expense?.locked);
@@ -102,8 +79,7 @@ export default function ExpenseDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              setDeleting(true);
-              await expenseService.deleteExpense(expense._id);
+              await deleteExpenseMutation.mutateAsync(expense._id);
               hapticFeedback.success();
               router.back();
             } catch (error: any) {
@@ -115,8 +91,6 @@ export default function ExpenseDetailScreen() {
                   "Could not delete this expense at this moment.",
                 type: "warning",
               });
-            } finally {
-              setDeleting(false);
             }
           },
         },
@@ -130,14 +104,12 @@ export default function ExpenseDetailScreen() {
 
       <View className="flex-row items-center justify-between py-3">
         <TopNavigation />
-
         <Text
           style={{ fontFamily: "SpaceGrotesk_700Bold" }}
           className="text-base tracking-tight text-ink"
         >
           Expense Breakdown
         </Text>
-
         <View className="h-10 w-10" />
       </View>
 
@@ -180,21 +152,18 @@ export default function ExpenseDetailScreen() {
               <View className="h-12 w-12 items-center justify-center rounded-2xl bg-teal/10">
                 <Receipt size={22} color="#0E7C66" />
               </View>
-
               <Text
                 style={{ fontFamily: "SpaceGrotesk_700Bold" }}
                 className="mt-3 text-center text-2xl tracking-tight text-ink"
               >
                 {expense.title}
               </Text>
-
               <Text
                 style={{ fontFamily: "SpaceGrotesk_700Bold" }}
                 className="mt-1 text-4xl tracking-tight text-ink"
               >
                 {formatCurrency(expense.amount)}
               </Text>
-
               <View className="mt-4 flex-row items-center gap-1.5 rounded-full border border-ink/8 bg-canvas px-3.5 py-1.5">
                 <UserCheck size={13} color="#0E7C66" />
                 <Text
@@ -246,7 +215,6 @@ export default function ExpenseDetailScreen() {
                     contentFit="cover"
                     transition={250}
                   />
-
                   <View className="absolute bottom-4 left-4 right-4 flex-row items-center justify-between rounded-2xl border border-white/20 bg-ink/75 px-3.5 py-2.5 backdrop-blur-md">
                     <View className="flex-row items-center gap-2">
                       <ImageIcon size={14} color="#FFF8F0" />
@@ -257,7 +225,6 @@ export default function ExpenseDetailScreen() {
                         Receipt Invoice
                       </Text>
                     </View>
-
                     <Text
                       style={{ fontFamily: "SpaceGrotesk_700Bold" }}
                       className="text-[11px] text-coral tracking-wide"
@@ -315,7 +282,6 @@ export default function ExpenseDetailScreen() {
                             </Text>
                           </View>
                         )}
-
                         <View>
                           <Text
                             style={{ fontFamily: "SpaceGrotesk_700Bold" }}
@@ -358,7 +324,7 @@ export default function ExpenseDetailScreen() {
               <View className="mt-9 flex-row items-center gap-3">
                 <TouchableOpacity
                   onPress={handleEdit}
-                  disabled={deleting}
+                  disabled={deleteExpenseMutation.isPending}
                   activeOpacity={0.75}
                   className={`h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border active:scale-[0.99] ${
                     isLocked
@@ -377,11 +343,11 @@ export default function ExpenseDetailScreen() {
 
                 <TouchableOpacity
                   onPress={handleDelete}
-                  disabled={deleting}
+                  disabled={deleteExpenseMutation.isPending}
                   activeOpacity={0.75}
                   className="h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/10 active:scale-[0.99]"
                 >
-                  {deleting ? (
+                  {deleteExpenseMutation.isPending ? (
                     <ActivityIndicator color="#FF6B4A" />
                   ) : (
                     <>
@@ -414,7 +380,6 @@ export default function ExpenseDetailScreen() {
               onPress={() => setShowFullReceipt(false)}
               className="absolute inset-0"
             />
-
             <View className="absolute top-14 left-6 right-6 z-20 flex-row items-center justify-between">
               <View className="flex-row items-center gap-2 rounded-full border border-cream/15 bg-cream/10 px-3.5 py-1.5 backdrop-blur-md">
                 <Receipt size={14} color="#FFF8F0" />
@@ -425,7 +390,6 @@ export default function ExpenseDetailScreen() {
                   {expense.title}
                 </Text>
               </View>
-
               <TouchableOpacity
                 onPress={() => setShowFullReceipt(false)}
                 activeOpacity={0.8}
@@ -434,7 +398,6 @@ export default function ExpenseDetailScreen() {
                 <X size={18} color="#FFF8F0" strokeWidth={2.2} />
               </TouchableOpacity>
             </View>
-
             <View className="h-[75%] w-full items-center justify-center overflow-hidden rounded-3xl">
               <Image
                 source={{ uri: expense.receiptUrl }}

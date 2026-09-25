@@ -23,8 +23,7 @@ import {
 } from "lucide-react-native";
 import SafeScreen from "@/components/SafeScreen";
 import ReceiptPicker from "@/components/expenses/ReceiptPicker";
-import { expenseService } from "@/services/expenseService";
-import { groupService } from "@/services/groupService";
+import { useGroup, useCreateExpense } from "@/hooks/useGroupQueries";
 import { hapticFeedback } from "@/utils/haptics";
 import { useAppAlert } from "@/context/AlertContext";
 import TopNavigation from "@/components/common/TopNavigation";
@@ -49,31 +48,24 @@ export default function CreateExpenseScreen() {
   const [amount, setAmount] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("general");
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [fetchingGroup, setFetchingGroup] = useState(true);
+
   const [isTitleFocused, setIsTitleFocused] = useState(false);
 
-  const [group, setGroup] = useState<Group | null>(null);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
 
+  const groupQuery = useGroup(groupId);
+  const createExpenseMutation = useCreateExpense(groupId!);
+  const group = groupQuery.data ?? null;
+  const fetchingGroup = groupQuery.isLoading;
+  
+  const loading = createExpenseMutation.isPending;
   useEffect(() => {
-    if (!groupId || !currentUser) return;
-    groupService
-      .getUserGroups()
-      .then((groups) => {
-        const current = groups.find((g) => g._id === groupId);
-        if (current) {
-          setGroup(current);
-          const allMemberIds = (current.members as any[]).map((m) =>
-            typeof m === "string" ? m : m._id,
-          );
-          setSelectedMemberIds(allMemberIds);
-        }
-      })
-      .catch((err) => console.error("Error fetching group:", err))
-      .finally(() => setFetchingGroup(false));
-  }, [groupId, currentUser]);
-
+    if (!group) return;
+    const allMemberIds = (group.members as any[]).map((m) =>
+      typeof m === "string" ? m : m._id,
+    );
+    setSelectedMemberIds(allMemberIds);
+  }, [group?._id]);
   const toggleMember = (memberId: string) => {
     hapticFeedback.light();
     setSelectedMemberIds((prev) => {
@@ -143,8 +135,7 @@ export default function CreateExpenseScreen() {
     }
 
     try {
-      setLoading(true);
-      await expenseService.createExpense(groupId, {
+      await createExpenseMutation.mutateAsync({
         title: trimmedTitle,
         amount: parsedAmount,
         category: selectedCategory,
@@ -165,8 +156,6 @@ export default function CreateExpenseScreen() {
           "Could not save the expense. Please try again.",
         type: "warning",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
